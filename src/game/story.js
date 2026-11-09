@@ -52,13 +52,13 @@ export class Story {
 
   // ---------------------------------------------------------------- scripting primitives
   /** Guard a promise so stale beat scripts (after a retry) silently stop. */
-  _g(p) { const tk = this.token; return p.then((v) => (tk === this.token ? v : HANG)); }
-  wait(sec) { return this._g(new Promise((res) => this.timers.push({ t: this.time + sec, res }))); }
-  say(name, text, hold) { return this._g(this.hud.say(name, text, hold)); }
-  shot(pos, look, dur, ease) { return this._g(this.cam.shot(pos, look, dur, ease)); }
-  walk(f, pos, speed, state) { return this._g(f.walkTo(pos, speed, state)); }
+  _guardBeat(p) { const tk = this.token; return p.then((v) => (tk === this.token ? v : HANG)); }
+  wait(sec) { return this._guardBeat(new Promise((res) => this.timers.push({ t: this.time + sec, res }))); }
+  say(name, text, hold) { return this._guardBeat(this.hud.say(name, text, hold)); }
+  shot(pos, look, dur, ease) { return this._guardBeat(this.cam.shot(pos, look, dur, ease)); }
+  walk(f, pos, speed, state) { return this._guardBeat(f.walkTo(pos, speed, state)); }
   tween(dur, fn, ease = (x) => x * x * (3 - 2 * x)) {
-    return this._g(new Promise((res) => {
+    return this._guardBeat(new Promise((res) => {
       const start = this.time;
       const step = { t: 0, tick: () => { const k = Math.min(1, (this.time - start) / dur); fn(ease(k)); if (k >= 1) { res(); return true; } return false; } };
       this._tweens = this._tweens || []; this._tweens.push(step);
@@ -275,7 +275,7 @@ export class Story {
     // QTE
     this.qte = { t: 0, dur: 2.8, done: false };
     this.hud.qte(1, true);
-    const ok = await this._g(new Promise((res) => (this.qte.res = res)));
+    const ok = await this._guardBeat(new Promise((res) => (this.qte.res = res)));
     this.hud.qte(0, false);
     if (!ok) {
       this.audio.scream(V(0, 1, 4.5));
@@ -414,7 +414,7 @@ export class Story {
   async beat_duct() {
     this.glassTimer = null; this.hud.timer(0, false);
     this.player.enabled = false;
-    await this._g(this.hud.fade(1, 0.6));
+    await this._guardBeat(this.hud.fade(1, 0.6));
     this.audio.ductClank(this.max.position);
     this._placeCrew('D', [2.5, -0.35, Math.PI], [2.5, 0.55, Math.PI], [2.55, 0.85, Math.PI]);
     ['max', 'sean', 'anna'].forEach((k) => { this[k].setState('crawl'); this[k].weights = { crawl: 1 }; this[k].snap(); });
@@ -448,7 +448,7 @@ export class Story {
     this.player.enabled = false;
     this.hud.timer(0, false);
     if (this.area === 'D') {
-      await this._g(this.hud.fade(1, 0.45));
+      await this._guardBeat(this.hud.fade(1, 0.45));
       this.audio.impact(V(-3, -4.6, 2), 0.5, true);
     } else this.hud.fade(1, 0);
     this._placeCrew('S', [-3.0, 1.7, Math.PI / 2], [-2.3, 2.5, Math.PI / 2], [-3.4, 2.75, Math.PI / 2]);
@@ -531,7 +531,7 @@ export class Story {
     this.cinematic(true);
     this.hud.objective(null);
     this.hud.noise(0, false);
-    await this._g(this.hud.fade(1, 1.2));
+    await this._guardBeat(this.hud.fade(1, 1.2));
     this.setArea('S');
     S.setStorageDoor(0, true); S.storagePanelLight.material.emissive.set(0x3dff8a);
     this.resetZombies('hall');
@@ -574,10 +574,10 @@ export class Story {
     await this.say('Max', "One step at a time. First we gather equipment. Then we find a way off HELIOS-7.");
     this.max.lookPitch = 0;
     await this.say('Max', "Let's get to work.", 2.2);
-    await this._g(this.hud.fade(1, 2.5));
+    await this._guardBeat(this.hud.fade(1, 2.5));
     this.cam.release();
     this.audio.stopMusic(4);
-    await this._g(this.hud.chapter('NEW EARTH\n\nEND OF PROLOGUE\n\nCHAPTER 1 — SALVAGE\nCOMING SOON', 6));
+    await this._guardBeat(this.hud.chapter('NEW EARTH\n\nEND OF PROLOGUE\n\nCHAPTER 1 — SALVAGE\nCOMING SOON', 6));
     this.g.toTitle();
   }
 

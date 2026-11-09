@@ -14,7 +14,7 @@ const _earthTex = {};
 function earthTextures() {
   if (_earthTex.day) return _earthTex;
   const L = new THREE.TextureLoader();
-  const load = (url, srgb) => { const t = L.load(url); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.wrapS = THREE.RepeatWrapping; return t; };
+  const load = (url, srgb) => { const t = L.load(url, undefined, undefined, (err) => console.error('NEW EARTH: failed to load Earth texture', url, err)); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.wrapS = THREE.RepeatWrapping; return t; };
   _earthTex.day = load(dayUrl, true);
   _earthTex.night = load(nightUrl, true);
   _earthTex.brc = load(brcUrl, false);
