@@ -64,7 +64,14 @@ export class Intro {
     // Self-hosted intro media (built by scripts/make-intro.sh) wins over YouTube when present.
     this.localManifest = fetch('./intro/manifest.json', { cache: 'no-cache' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((m) => { if (m) this._prepLocalAudio(m); return m; })
+      .then((m) => {
+        if (!m) return null;
+        const ok = typeof m.duration === 'number' && m.duration > 3 && Array.isArray(m.segments) && m.segments.length
+          && m.segments.every((g) => typeof g.start === 'number' && typeof g.end === 'number') && m.video?.['720'] && m.video?.['480'] && m.music;
+        if (!ok) { console.warn('intro/manifest.json is malformed; ignoring self-hosted media. Re-run scripts/make-intro.sh.'); return null; }
+        this._prepLocalAudio(m);
+        return m;
+      })
       .catch((e) => { console.info('No self-hosted intro media; using YouTube embed.', e?.message || e); return null; });
     // start fetching the YouTube API right away so the tap → video gap is short
     this.ytReady = loadYouTubeAPI().then((YT) => this._makePlayers(YT)).catch((e) => { console.warn('Intro footage unavailable:', e.message); return null; });
