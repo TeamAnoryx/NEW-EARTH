@@ -125,6 +125,21 @@ function bloodTex(seed, drag = false) {
   const t = new THREE.CanvasTexture(a); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+function handTex(seed) {
+  const w = 256, r = rand(seed), a = canvas(w, w), c = a.getContext('2d');
+  c.clearRect(0, 0, w, w);
+  c.fillStyle = 'rgba(110,4,4,0.92)';
+  c.save(); c.translate(128, 150); c.rotate((r() - 0.5) * 0.6);
+  c.beginPath(); c.ellipse(0, 0, 38, 46, 0, 0, 7); c.fill();
+  const fingers = [[-30, -50, 9, 40, -0.35], [-12, -66, 9, 48, -0.1], [6, -68, 9, 50, 0.05], [24, -58, 8, 42, 0.25], [44, -10, 9, 34, 1.0]];
+  fingers.forEach(([x, y, fw, fl, rot]) => { c.save(); c.translate(x, y); c.rotate(rot); c.beginPath(); c.ellipse(0, 0, fw, fl / 2, 0, 0, 7); c.fill(); c.restore(); });
+  // smear dragging downward
+  for (let i = 0; i < 14; i++) { c.fillStyle = `rgba(100,0,0,${0.5 * (1 - i / 14)})`; c.fillRect(-30 + r() * 8, 40 + i * 6, 56 - i * 2, 7); }
+  for (let i = 0; i < 4; i++) { const x = -25 + r() * 50, len = 30 + r() * 70; c.fillStyle = 'rgba(105,0,0,0.85)'; c.fillRect(x, 40, 3, len); c.beginPath(); c.arc(x + 1.5, 40 + len, 3.5, 0, 7); c.fill(); }
+  c.restore();
+  const t = new THREE.CanvasTexture(a); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 function crackTex() {
   const w = 1024, a = canvas(w, w), c = a.getContext('2d');
   c.clearRect(0, 0, w, w);
@@ -224,6 +239,7 @@ export function getMaterials() {
     storage: screenTex(['STORAGE C-7', 'INVENTORY: 412 ITEMS', 'TOOLS / MED / EVA', 'DOOR: !OBSTRUCTED'], '#ffb547', 'LOGISTICS'),
   };
   M.blood = [bloodTex(1), bloodTex(2, true), bloodTex(3)].map((t) => new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.15, metalness: 0.1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+  M.hands = [11, 23, 37, 41].map((sd) => new THREE.MeshStandardMaterial({ map: handTex(sd), transparent: true, roughness: 0.25, depthWrite: false, side: THREE.DoubleSide }));
   M.crack = new THREE.MeshBasicMaterial({ map: crackTex(), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
   M.softDot = softDot();
   M.fabricBump = fabric;

@@ -11,6 +11,8 @@ export class Input {
     this.sensitivity = 1;
     this.invertY = false;
     this.onEscape = null;
+    this.analog = null;   // {x,y} from the touch thumbstick, -1..1
+    this.touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Tab') e.preventDefault();
@@ -33,7 +35,7 @@ export class Input {
   }
 
   requestLock() {
-    if (!this.enabled || this.locked) return;
+    if (!this.enabled || this.locked || this.touch) return;
     try {
       const p = this.canvas.requestPointerLock?.();
       if (p && p.catch) p.catch(() => {});

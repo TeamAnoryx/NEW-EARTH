@@ -9,7 +9,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 
 export const QUALITY = {
   low:    { pixelRatio: 0.85, shadows: false, shadowSize: 512,  bloom: false, smaa: false },
-  medium: { pixelRatio: 1.0,  shadows: true,  shadowSize: 1024, bloom: true,  smaa: false },
+  medium: { pixelRatio: 1.35,  shadows: true,  shadowSize: 1024, bloom: true,  smaa: false },
   high:   { pixelRatio: 1.5,  shadows: true,  shadowSize: 2048, bloom: true,  smaa: true },
   ultra:  { pixelRatio: 2.0,  shadows: true,  shadowSize: 2048, bloom: true,  smaa: true },
 };

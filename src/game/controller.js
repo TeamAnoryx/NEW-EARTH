@@ -64,17 +64,19 @@ export class PlayerController {
       if (I.isDown('KeyS', 'ArrowDown')) mz -= 1;
       if (I.isDown('KeyA', 'ArrowLeft')) mx += 1;
       if (I.isDown('KeyD', 'ArrowRight')) mx -= 1;
+      if (I.analog) { mx -= I.analog.x; mz -= I.analog.y; }
       if (this.area !== 'D') {
         const crouchHeld = I.isDown('KeyC', 'ControlLeft', 'ControlRight');
         this.mode = crouchHeld || this.forceCrouch ? 'crouch' : 'stand';
       } else this.mode = 'crawl';
     }
-    const len = Math.hypot(mx, mz);
+    const len = Math.min(1, Math.hypot(mx, mz));
+    const analogScale = this.input.analog ? Math.max(0.35, len) : 1;
     const sprint = this.enabled && I.isDown('ShiftLeft', 'ShiftRight') && this.mode === 'stand';
     let target = 0;
     if (len > 0) {
-      mx /= len; mz /= len;
-      target = (this.mode === 'crawl' ? 1.1 : this.mode === 'crouch' ? 1.35 : sprint ? 4.6 : 2.1) * this.maxSpeedScale;
+      const l2 = Math.hypot(mx, mz); mx /= l2; mz /= l2;
+      target = (this.mode === 'crawl' ? 1.1 : this.mode === 'crouch' ? 1.35 : sprint ? 4.6 : 2.1) * this.maxSpeedScale * analogScale;
     }
     // camera-relative direction: forward = (sin yaw, cos yaw)
     const fy = this.camYaw;

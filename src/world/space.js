@@ -1,74 +1,73 @@
 import * as THREE from 'three';
+import dayUrl from '../assets/earth_day.jpg';
+import nightUrl from '../assets/earth_night.jpg';
+import brcUrl from '../assets/earth_brc.jpg';
 
-const NOISE = /* glsl */`
-  vec3 hash3(vec3 p) {
-    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
-    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-  }
-  float noise(vec3 p) {
-    vec3 i = floor(p), f = fract(p);
-    vec3 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(dot(hash3(i + vec3(0,0,0)), f - vec3(0,0,0)), dot(hash3(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
-                   mix(dot(hash3(i + vec3(0,1,0)), f - vec3(0,1,0)), dot(hash3(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
-               mix(mix(dot(hash3(i + vec3(0,0,1)), f - vec3(0,0,1)), dot(hash3(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
-                   mix(dot(hash3(i + vec3(0,1,1)), f - vec3(0,1,1)), dot(hash3(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
-  }
-  float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 6; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
-`;
 
-/** Procedural Earth: continents, oceans with sun glint, ice caps, moving clouds, night-side city lights, atmosphere. */
-export function createEarth(radius = 600, clouds = 1.0, detail = 1.0) {
+
+/**
+ * Photographic Earth: day albedo, night city lights, ocean specular (from the roughness channel),
+ * drifting cloud layer, terminator glow and a Rayleigh-style atmosphere rim.
+ * Textures: three.js r186 examples/textures/planets (earth_day / earth_night / earth_bump_roughness_clouds).
+ */
+const _earthTex = {};
+function earthTextures() {
+  if (_earthTex.day) return _earthTex;
+  const L = new THREE.TextureLoader();
+  const load = (url, srgb) => { const t = L.load(url); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.wrapS = THREE.RepeatWrapping; return t; };
+  _earthTex.day = load(dayUrl, true);
+  _earthTex.night = load(nightUrl, true);
+  _earthTex.brc = load(brcUrl, false);
+  return _earthTex;
+}
+
+export function createEarth(radius = 600, clouds = 1.0) {
   const group = new THREE.Group();
+  const T = earthTextures();
   const sunDir = new THREE.Vector3(1, 0.25, 0.35).normalize();
-  const uniforms = { uTime: { value: 0 }, uSun: { value: sunDir }, uCamPos: { value: new THREE.Vector3() }, uClouds: { value: clouds }, uDetail: { value: detail } };
-
+  const uniforms = {
+    uTime: { value: 0 }, uSun: { value: sunDir }, uCamPos: { value: new THREE.Vector3() }, uClouds: { value: clouds },
+    dayMap: { value: T.day }, nightMap: { value: T.night }, brcMap: { value: T.brc },
+  };
   const surface = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: /* glsl */`
-      varying vec3 vN; varying vec3 vP; varying vec3 vW;
-      void main() { vP = position; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }
+      varying vec3 vN; varying vec3 vW; varying vec2 vUv;
+      void main() { vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }
     `,
     fragmentShader: /* glsl */`
-      uniform float uTime; uniform vec3 uSun; uniform vec3 uCamPos; uniform float uClouds; uniform float uDetail;
-      varying vec3 vN; varying vec3 vP; varying vec3 vW;
-      ${NOISE}
+      uniform float uTime, uClouds; uniform vec3 uSun, uCamPos;
+      uniform sampler2D dayMap, nightMap, brcMap;
+      varying vec3 vN; varying vec3 vW; varying vec2 vUv;
       void main() {
-        vec3 p0 = normalize(vP); vec3 p = p0 * uDetail;
-        float h = fbm(p * 2.2) + 0.45 * fbm(p * 5.0 + 3.1);
-        float land = smoothstep(0.08, 0.12, h);
-        float lat = abs(p0.y);
-        vec3 ocean = mix(vec3(0.005, 0.04, 0.14), vec3(0.02, 0.16, 0.36), smoothstep(-0.3, 0.1, h));
-        vec3 green = vec3(0.07, 0.16, 0.05), desert = vec3(0.42, 0.33, 0.18), rock = vec3(0.22, 0.2, 0.17);
-        float dry = smoothstep(0.1, 0.5, fbm(p * 3.0 + 7.0) + (0.35 - abs(lat - 0.3)));
-        vec3 landC = mix(green, desert, dry);
-        landC = mix(landC, rock, smoothstep(0.35, 0.6, h));
-        vec3 col = mix(ocean, landC, land);
-        float ice = smoothstep(0.78, 0.86, lat + fbm(p * 6.0) * 0.08);
-        col = mix(col, vec3(0.85, 0.9, 0.95), ice);
-        // clouds (animated)
-        vec3 cp = p * 3.0 + vec3(uTime * 0.004, 0.0, uTime * 0.002);
-        float cl = clamp(smoothstep(0.12 - 0.12 * (uClouds - 1.0), 0.62, fbm(cp) + 0.35 * fbm(cp * 3.0) + 0.2 * fbm(cp * 9.0)) * 0.85 * uClouds, 0.0, 1.0);
-        vec3 N = normalize(vN);
+        vec3 N = normalize(vN), V = normalize(uCamPos - vW), H = normalize(uSun + V);
         float d = dot(N, uSun);
-        float day = smoothstep(-0.15, 0.25, d);
-        vec3 V = normalize(uCamPos - vW);
-        vec3 H = normalize(uSun + V);
-        float spec = pow(max(dot(N, H), 0.0), 60.0) * (1.0 - land) * (1.0 - cl) * 1.4;
-        vec3 lit = col * (0.03 + 1.1 * max(d, 0.0)) + vec3(1.0, 0.9, 0.7) * spec * day;
-        lit = mix(lit, vec3(0.95, 0.97, 1.0) * (0.04 + 0.95 * max(d, 0.0)), cl * 0.9);
-        // city lights on night side
-        float city = smoothstep(0.55, 0.85, noise(p * 90.0) * 0.5 + 0.5) * land * (1.0 - ice) * smoothstep(0.2, 0.6, fbm(p * 8.0) + 0.4);
-        lit += vec3(1.0, 0.62, 0.28) * city * (1.0 - day) * (1.0 - cl * 0.8) * 1.6;
-        // terminator warm band
-        lit += vec3(0.6, 0.25, 0.05) * smoothstep(0.2, 0.0, abs(d)) * 0.08;
-        // rim atmosphere tint
-        float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-        lit += vec3(0.25, 0.55, 1.0) * fres * (0.2 + day) * 0.8;
-        gl_FragColor = vec4(lit, 1.0);
+        vec3 day = texture2D(dayMap, vUv).rgb;
+        vec3 night = texture2D(nightMap, vUv).rgb;
+        float rough = texture2D(brcMap, vUv).g;
+        float cloud = texture2D(brcMap, vUv + vec2(uTime * 0.0006, 0.0)).b;
+        cloud = smoothstep(0.15, 0.85, cloud) * uClouds;
+        float lit = smoothstep(-0.08, 0.35, d);
+        vec3 col = day * (0.015 + 1.35 * max(d, 0.0));
+        // ocean glint
+        float ocean = 1.0 - smoothstep(0.25, 0.6, rough);
+        float spec = pow(max(dot(N, H), 0.0), 90.0) * ocean * 1.6 + pow(max(dot(N, H), 0.0), 12.0) * ocean * 0.08;
+        col += vec3(1.0, 0.92, 0.78) * spec * lit;
+        // clouds
+        vec3 cloudCol = vec3(1.0) * (0.02 + 1.25 * max(d, 0.0));
+        col = mix(col, cloudCol, cloud * 0.95);
+        // city lights on the night side (dimmed under clouds)
+        col += night * pow(1.0 - lit, 2.0) * (1.0 - cloud * 0.8) * vec3(1.6, 1.25, 0.9);
+        // warm terminator
+        col += vec3(0.55, 0.22, 0.06) * smoothstep(0.18, 0.0, abs(d)) * 0.12;
+        // atmospheric in-scatter toward the limb
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 2.5);
+        col = mix(col, vec3(0.32, 0.58, 1.0) * (0.15 + 1.2 * lit), fres * 0.65);
+        gl_FragColor = vec4(col, 1.0);
       }
     `,
   });
-  const earth = new THREE.Mesh(new THREE.SphereGeometry(radius, 128, 96), surface);
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(radius, 160, 120), surface);
   group.add(earth);
 
   const atmo = new THREE.ShaderMaterial({
@@ -82,19 +81,18 @@ export function createEarth(radius = 600, clouds = 1.0, detail = 1.0) {
       uniform vec3 uSun; uniform vec3 uCamPos; varying vec3 vN; varying vec3 vW;
       void main() {
         vec3 V = normalize(uCamPos - vW);
-        float rim = pow(1.0 - abs(dot(normalize(vN), V)), 2.2);
-        float day = smoothstep(-0.4, 0.5, dot(normalize(vN), uSun));
-        vec3 c = mix(vec3(0.05, 0.15, 0.6), vec3(0.35, 0.65, 1.0), day);
-        gl_FragColor = vec4(c * rim * (0.25 + day * 1.6), rim);
+        float rim = pow(1.0 - abs(dot(normalize(vN), V)), 3.0);
+        float day = smoothstep(-0.3, 0.6, dot(normalize(vN), uSun));
+        vec3 c = mix(vec3(0.04, 0.1, 0.45), vec3(0.35, 0.62, 1.0), day);
+        gl_FragColor = vec4(c * rim * (0.2 + day * 1.8), rim);
       }
     `,
   });
-  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.035, 96, 64), atmo);
-  group.add(atmosphere);
+  group.add(new THREE.Mesh(new THREE.SphereGeometry(radius * 1.025, 128, 64), atmo));
 
   group.userData.update = (t, camera) => {
     uniforms.uTime.value = t;
-    earth.rotation.y = t * 0.004;
+    earth.rotation.y = t * 0.003;
     camera.getWorldPosition(uniforms.uCamPos.value);
   };
   group.userData.sunDir = sunDir;

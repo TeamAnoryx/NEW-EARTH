@@ -8,6 +8,7 @@ import { getMaterials } from './world/materials.js';
 import { Station, AREAS } from './world/station.js';
 import { createEarth, createStars, createSun, createStationExterior } from './world/space.js';
 import { Story } from './game/story.js';
+import { TouchControls, isTouch } from './ui/touch.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -34,6 +35,17 @@ class Game {
     this.t = 0;
     this.tabletEnabled = false;
     this.settings = loadSettings();
+    this.isTouch = isTouch();
+    document.body.classList.toggle('touch', this.isTouch);
+    if (this.isTouch) { let saved = null; try { saved = localStorage.getItem(SETTINGS_KEY); } catch { /* private mode */ } if (!saved) this.settings.quality = 'medium'; }
+    if (this.isTouch) {
+      this.touch = new TouchControls(this.input, {
+        onCrouch: (v) => { if (this.story) this.story.player.forceCrouch = v; },
+        onMap: () => { if (this.tablet.open) this.closeTablet(); else if (this.tabletEnabled && this.story?.player.enabled) this.openTablet(null); },
+        onPause: () => (this.mode === 'pause' ? this.resume() : this.mode === 'play' && this.pause()),
+        onTap: () => this.hud.advance(),
+      });
+    }
     this.input.onEscape = () => this.onEscape();
     // pause when the tab is hidden (rAF stops; avoid a huge delta and missed cues)
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && this.mode === 'play') this.pause(); });
@@ -68,7 +80,7 @@ class Game {
     s.background = new THREE.Color(0x000000);
     s.environment = this.renderer.envMap; s.environmentIntensity = 0.15;
     this.titleCam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.5, 6000);
-    const earth = createEarth(1400, 1.0, 5.0); earth.position.set(0, -1480, -250); earth.rotation.set(1.35, 0, 0.3); s.add(earth);
+    const earth = createEarth(1400, 1.0); earth.position.set(0, -1480, -250); earth.rotation.set(1.35, 0, 0.3); s.add(earth);
     const stars = createStars(7000, 2800); s.add(stars);
     const sunDir = earth.userData.sunDir;
     const sun = createSun(sunDir, 2500); sun.scale.setScalar(420); s.add(sun);
@@ -141,6 +153,8 @@ class Game {
     this.renderer.renderPass.scene = this.renderer.scene;
     this.renderer.renderPass.camera = this.renderer.camera;
     this.hud.show(true);
+    this.touch?.show(true);
+    this._goFullscreen();
     this.mode = 'play';
     this.tabletEnabled = false;
     this.input.requestLock();
@@ -148,8 +162,18 @@ class Game {
     this.story.start('intro');
   }
 
+  async _goFullscreen() {
+    if (!this.isTouch) return;
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+      await screen.orientation?.lock?.('landscape');
+    } catch { /* iOS Safari: no fullscreen/orientation lock — the rotate prompt covers it */ }
+  }
+
   toTitle(first = false) {
     this.mode = 'title';
+    this.touch?.show(false);
     this.inTitle = true;
     this.hud.show(false); this.hud.clearSub(); this.hud.cinematic(false);
     this.input.exitLock();
@@ -227,6 +251,7 @@ class Game {
         if (I.wasPressed('Space', 'Enter')) this.hud.advance();
         if (I.wasPressed('Tab') && this.tabletEnabled && this.story.player.enabled) this.openTablet(null);
         this.story.update(dt);
+        this.touch?.setMapAvailable(this.tabletEnabled);
       } else if (this.tablet.open) {
         I.consumeMouse();
         if (I.wasPressed('Tab')) this.closeTablet();

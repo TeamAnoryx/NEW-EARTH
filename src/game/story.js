@@ -45,7 +45,7 @@ export class Story {
     // dead crewman in corridor (Dr. Okafor's victim)
     this.corpse = createZombie(3);
     this.corpse.mats.skin.color.set(0xb88a6a);
-    this.corpse.setState('dead'); this.corpse.weights = { dead: 1 };
+    this.corpse.setState('dead'); this.corpse.weights = { dead: 1 }; this.corpse.snap();
     this.scene.add(this.corpse.root);
     this.corpse.root.position.set(2.0, 0, 6.6); this.corpse.yaw = 1.2;
   }
@@ -101,7 +101,7 @@ export class Story {
       const d = group === 'corridor' ? corridor[i] : hall[i - 6];
       const y = group === 'corridor' ? 0 : -4.6;
       z.c.root.position.set(d[0], y, d[1]); z.c.yaw = d[2];
-      z.c.setState(d[3]); z.c.weights = { [d[3]]: 1 }; z.mode = 'idle'; z.target = null; z.speed = 0; z.c.speed = 0;
+      z.c.setState(d[3]); z.c.weights = { [d[3]]: 1 }; z.c.snap(); z.mode = 'idle'; z.target = null; z.speed = 0; z.c.speed = 0;
       z.home = z.c.root.position.clone();
     });
   }
@@ -123,7 +123,7 @@ export class Story {
 
   _placeCrew(area, max, sean, anna) {
     this.setArea(area);
-    const set = (c, [x, z, yaw, st]) => { c.root.position.set(x, this.g.areas[area].floorY, z); c.yaw = yaw; c.setState(st || 'idle'); c.weights = { [st || 'idle']: 1 }; c.speed = 0; };
+    const set = (c, [x, z, yaw, st]) => { c.root.position.set(x, this.g.areas[area].floorY, z); c.yaw = yaw; c.setState(st || 'idle'); c.weights = { [st || 'idle']: 1 }; c.snap(); c.speed = 0; };
     set(this.max, max); set(this.sean, sean); set(this.anna, anna);
     this.player.camYaw = max[2]; this.player.camPitch = 0.12; this.player.vel.set(0, 0, 0);
     this.trail = [];
@@ -142,7 +142,7 @@ export class Story {
     S.setStorageDoor(0.45, true); S.storagePanelLight.material.emissive.set(0xff3b3b);
     this.resetZombies('corridor'); this.resetZombies('hall');
     // crew asleep in their pods (head toward the wall, -Z)
-    const lie = (c, x) => { c.root.position.set(x, 0.47, -1.82); c.yaw = 0; c.setState('sleep'); c.weights = { sleep: 1 }; };
+    const lie = (c, x) => { c.root.position.set(x, 0.47, -1.82); c.yaw = 0; c.setState('sleep'); c.weights = { sleep: 1 }; c.snap(); };
     lie(this.max, 0); lie(this.sean, -3); lie(this.anna, 3);
     this.fSean.active = this.fAnna.active = false;
     this.cinematic(true);
@@ -417,7 +417,7 @@ export class Story {
     await this._g(this.hud.fade(1, 0.6));
     this.audio.ductClank(this.max.position);
     this._placeCrew('D', [2.5, -0.35, Math.PI], [2.5, 0.55, Math.PI], [2.55, 0.85, Math.PI]);
-    ['max', 'sean', 'anna'].forEach((k) => { this[k].setState('crawl'); this[k].weights = { crawl: 1 }; });
+    ['max', 'sean', 'anna'].forEach((k) => { this[k].setState('crawl'); this[k].weights = { crawl: 1 }; this[k].snap(); });
     this.trail = [V(2.5, -1.4, 0.85), V(2.5, -1.4, 0.6), V(2.5, -1.4, 0.4)];
     this.fSean.active = this.fAnna.active = true;
     this.station.setGlassDoor(0, true);
@@ -539,7 +539,7 @@ export class Story {
     const sit = (c, seat, faceTo) => {
       c.root.position.copy(seat);
       c.yaw = Math.atan2(faceTo.x - seat.x, faceTo.z - seat.z);
-      c.setState('sit'); c.weights = { sit: 1 };
+      c.setState('sit'); c.weights = { sit: 1 }; c.snap();
       // shift so hips sit on the crate centre (hips are ~0.0 forward of root)
       c.root.position.y = -4.6 + 0.0;
     };

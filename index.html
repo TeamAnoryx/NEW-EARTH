@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#02040a" />
   <title>NEW EARTH</title>
   <link rel="stylesheet" href="./src/ui/style.css" />
@@ -30,14 +33,21 @@
         <button data-action="controls" class="menu-btn">CONTROLS</button>
         <button data-action="settings" class="menu-btn">SETTINGS</button>
       </nav>
-      <div class="title-foot">SINGLE PLAYER · OFFLINE MODE · HEADPHONES RECOMMENDED</div>
+      <div class="title-foot">SINGLE PLAYER · PLAYS OFFLINE · HEADPHONES RECOMMENDED</div>
     </div>
   </div>
 
   <!-- Panels -->
   <div id="panel-controls" class="panel hidden">
     <h2>CONTROLS</h2>
-    <table>
+    <table class="touch-only">
+      <tr><td>Left thumb</td><td>Move (push further to go faster)</td></tr>
+      <tr><td>Right thumb</td><td>Drag to look · tap to skip dialogue</td></tr>
+      <tr><td>E button</td><td>Interact — tap, or hold when asked</td></tr>
+      <tr><td>Crouch</td><td>Toggle — silent movement</td></tr>
+      <tr><td>Bolt</td><td>Hold to sprint — loud</td></tr>
+    </table>
+    <table class="desk-only">
       <tr><td>W A S D</td><td>Move</td></tr>
       <tr><td>Mouse</td><td>Look (click the screen to capture the mouse)</td></tr>
       <tr><td>Shift</td><td>Sprint — loud</td></tr>
@@ -118,6 +128,7 @@
     </div>
   </div>
 
+  <div id="rotate"><div><svg viewBox="0 0 24 24" width="64" height="64"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><p>ROTATE YOUR PHONE</p><small>NEW EARTH plays in landscape</small></div></div>
   <div id="fade"></div>
   <div id="letterbox"><i></i><i></i></div>
 

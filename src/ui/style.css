@@ -137,3 +137,47 @@ body.cinematic #objective, body.cinematic #crosshair { opacity: 0; }
   #objective { left: 16px; top: 16px; }
   #noise { right: 16px; bottom: 16px; }
 }
+
+/* ---------- mobile / touch ---------- */
+body.touch .desk-only, body:not(.touch) .touch-only { display: none; }
+body.touch #crosshair { display: none; }
+#touch { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
+#touch .t-zone { position: absolute; top: 0; bottom: 0; pointer-events: auto; touch-action: none; }
+#touch .t-move { left: 0; width: 45%; }
+#touch .t-look { right: 0; width: 55%; }
+.t-stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 1.5px solid rgba(95,243,255,.35); background: radial-gradient(circle, rgba(95,243,255,.08), rgba(0,0,0,.15)); pointer-events: none; }
+.t-stick i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px; border-radius: 50%; background: rgba(232,244,255,.85); box-shadow: 0 0 18px rgba(95,243,255,.6); transition: transform .04s linear; }
+.t-btn { position: absolute; pointer-events: auto; touch-action: none; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid rgba(232,244,255,.35); background: rgba(6,16,26,.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #e8f4ff; padding: 0; -webkit-tap-highlight-color: transparent; transition: transform .08s, background .15s, opacity .3s; }
+.t-btn svg { width: 46%; height: 46%; fill: currentColor; }
+.t-btn.held, .t-btn.on { background: rgba(95,243,255,.35); transform: scale(.94); border-color: var(--cyan); }
+.t-act { right: calc(env(safe-area-inset-right) + 28px); bottom: calc(env(safe-area-inset-bottom) + 34px); width: 84px; height: 84px; font: 700 26px var(--mono); opacity: .45; }
+body.can-act .t-act, body.qte .t-act { opacity: 1; background: rgba(95,243,255,.28); border-color: var(--cyan); box-shadow: 0 0 24px rgba(95,243,255,.5); animation: qpulse .6s infinite alternate; }
+.t-crouch { right: calc(env(safe-area-inset-right) + 128px); bottom: calc(env(safe-area-inset-bottom) + 24px); width: 62px; height: 62px; }
+.t-sprint { right: calc(env(safe-area-inset-right) + 40px); bottom: calc(env(safe-area-inset-bottom) + 136px); width: 62px; height: 62px; }
+.t-map { right: calc(env(safe-area-inset-right) + 138px); bottom: calc(env(safe-area-inset-bottom) + 112px); width: 52px; height: 52px; }
+.t-pause { right: calc(env(safe-area-inset-right) + 18px); top: calc(env(safe-area-inset-top) + 16px); width: 44px; height: 44px; }
+.t-btn.hidden { display: none; }
+body.cinematic #touch .t-move, body.cinematic #touch .t-btn:not(.t-act):not(.t-pause) { opacity: 0; pointer-events: none; }
+body.cinematic:not(.qte) #touch .t-act { opacity: 0; pointer-events: none; }
+body.touch #objective { left: calc(env(safe-area-inset-left) + 18px); top: calc(env(safe-area-inset-top) + 14px); max-width: 46vw; }
+body.touch #obj-text { font-size: 13px; }
+body.touch #prompt { top: auto; bottom: calc(env(safe-area-inset-bottom) + 140px); }
+body.touch #noise { right: auto; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 14px); width: 180px; }
+body.touch #sub-text { font-size: 16px; }
+body.touch #subtitle { bottom: calc(env(safe-area-inset-bottom) + 12px); width: min(60vw, 640px); }
+body.touch .title-logo { font-size: clamp(40px, 11vh, 110px); margin: 8px 0 4px; }
+body.touch .title-sub { margin-bottom: 18px; }
+body.touch .menu-btn { padding: 12px 18px; min-width: 220px; }
+body.touch .title-foot { margin-top: 18px; }
+#rotate { display: none; position: fixed; inset: 0; z-index: 90; background: #02040a; color: var(--ink); place-items: center; text-align: center; letter-spacing: .3em; }
+#rotate svg { animation: rot 2s ease-in-out infinite; color: var(--cyan); }
+#rotate small { color: var(--dim); letter-spacing: .1em; }
+@keyframes rot { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { #rotate { display: grid; } }
+@media (max-height: 500px) {
+  .tablet-body { grid-template-columns: 120px 1fr; }
+  .tablet-info { display: none; }
+  .panel { max-height: 90vh; overflow: auto; padding: 16px 20px; }
+}
+body.touch #timer { left: auto; right: calc(env(safe-area-inset-right) + 76px); top: calc(env(safe-area-inset-top) + 20px); transform: none; width: 34vw; }
+body.touch #chapter-card { font-size: 15px; letter-spacing: .4em; }

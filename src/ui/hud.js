@@ -26,6 +26,7 @@ export class HUD {
 
   prompt(text, key = 'E') {
     const p = $('prompt');
+    document.body.classList.toggle('can-act', !!text);
     if (!text) { p.classList.add('hidden'); this._prompt = null; return; }
     if (this._prompt === text + key) return;
     this._prompt = text + key;
@@ -88,6 +89,7 @@ export class HUD {
 
   qte(progress, visible = true, text = 'SEAL THE DOOR') {
     $('qte').classList.toggle('hidden', !visible);
+    document.body.classList.toggle('qte', visible);
     if (!visible) return;
     $('qte-text').textContent = text;
     $('qte-arc').style.strokeDashoffset = `${276.5 * (1 - Math.max(0, Math.min(1, progress)))}`;

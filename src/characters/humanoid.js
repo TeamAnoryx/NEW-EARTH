@@ -13,6 +13,8 @@ import { getMaterials } from '../world/materials.js';
 
 const JOINTS = ['hips', 'spine', 'chest', 'neck', 'head', 'lShoulder', 'lElbow', 'lHand', 'rShoulder', 'rElbow', 'rHand', 'lHip', 'lKnee', 'lFoot', 'rHip', 'rKnee', 'rFoot'];
 const TAU = Math.PI * 2;
+// spring stiffness (rad/s) per joint — lower = more follow-through
+const SPRING = { hips: 24, spine: 18, chest: 15, neck: 11, head: 9, lShoulder: 13, rShoulder: 13, lElbow: 11, rElbow: 11, lHand: 9, rHand: 9, lHip: 26, rHip: 26, lKnee: 26, rKnee: 26, lFoot: 24, rFoot: 24 };
 
 function taper(len, r1, r2, radial = 14) {
   const pts = [];
@@ -101,6 +103,7 @@ export class Humanoid {
     this._lastStepSign = 0;
     this._hairVel = 0; this._hairAng = 0;
     this.custom = null;       // optional function(pose, t) for scripted overrides
+    this.seed = Math.random() * 10;
   }
 
   _build() {
@@ -332,6 +335,9 @@ export class Humanoid {
     mesh(new THREE.SphereGeometry(0.06, 10, 8), m.blood, J.chest, [-0.08, 0.0, 0.16], [0, 0, 0], [1.3, 2.0, 0.25]);
   }
 
+  /** Drop spring history so a teleported/re-posed character doesn't ease from its old pose. */
+  snap() { this._sm = null; this._sv = null; this._bs = null; this._prevYaw = undefined; this._prevSpeed = undefined; }
+
   setState(name, blendRate = 6) { if (this.state !== name) { this.state = name; this.blendRate = blendRate; if (!(name in this.weights)) this.weights[name] = 0; } }
 
   // ---------------------------------------------------------------- poses
@@ -342,12 +348,17 @@ export class Humanoid {
     const breathe = s(t * 1.5) * 0.025;
     switch (name) {
       case 'idle': {
-        set('hips', 0, s(t * 0.4) * 0.03, s(t * 0.5) * 0.015);
-        set('spine', 0.02 + breathe * 0.5); set('chest', -0.02 - breathe);
-        set('neck', 0.05 + s(t * 0.3) * 0.03, s(t * 0.21) * 0.15); set('head', 0.0, 0, s(t * 0.27) * 0.04);
-        set('lShoulder', 0.05 + breathe, 0, 0.1); set('rShoulder', 0.05 + breathe, 0, -0.1);
-        set('lElbow', -0.18); set('rElbow', -0.18); set('lHand', 0, 0, -0.1); set('rHand', 0, 0, 0.1);
-        set('lHip', -0.02, 0.05, 0.03); set('rHip', 0.02, -0.05, -0.03); set('lKnee', 0.05); set('rKnee', 0.03); set('lFoot', -0.03); set('rFoot', -0.03);
+        // slow weight shift from leg to leg, as people do when standing
+        const ws = Math.sin(t * 0.33 + this.seed) * 0.8 + Math.sin(t * 0.71 + this.seed * 2) * 0.2;
+        set('hips', 0, s(t * 0.4) * 0.03, ws * 0.045);
+        set('spine', 0.02 + breathe * 0.5, 0, -ws * 0.03); set('chest', -0.02 - breathe, 0, -ws * 0.015);
+        set('neck', 0.05 + s(t * 0.3) * 0.03, s(t * 0.21 + this.seed) * 0.15 + (s(t * 0.13) > 0.93 ? 0.35 : 0), ws * 0.02); set('head', 0.0, 0, s(t * 0.27) * 0.04);
+        set('lShoulder', 0.05 + breathe, 0, 0.1 + ws * 0.02); set('rShoulder', 0.05 + breathe, 0, -0.1 + ws * 0.02);
+        set('lElbow', -0.18 - breathe); set('rElbow', -0.2 - breathe); set('lHand', 0, 0, -0.1); set('rHand', 0, 0, 0.1);
+        set('lHip', -0.02, 0.05, 0.03 - ws * 0.045); set('rHip', 0.02, -0.05, -0.03 - ws * 0.045);
+        set('lKnee', 0.05 + Math.max(0, -ws) * 0.16); set('rKnee', 0.03 + Math.max(0, ws) * 0.16);
+        set('lFoot', -0.03 - Math.max(0, -ws) * 0.08); set('rFoot', -0.03 - Math.max(0, ws) * 0.08);
+        B.x = ws * 0.03;
         break;
       }
       case 'alarmed': {
@@ -366,7 +377,7 @@ export class Humanoid {
         const A = moving ? (run ? 1.0 : cr ? 0.45 : 0.55) : 0;
         const sp = s(ph), cp = c(ph);
         const baseHip = cr ? -1.0 : 0, baseKnee = cr ? 1.9 : 0;
-        set('hips', 0, sp * 0.09 * A, 0);
+        set('hips', 0, sp * 0.09 * A, -sp * 0.05 * A);
         set('spine', (run ? 0.18 : 0.05) + (cr ? 0.35 : 0) + breathe * 0.4, 0, 0);
         set('chest', cr ? 0.15 : 0.0, -sp * 0.18 * A, 0);
         set('neck', cr ? -0.35 : run ? -0.12 : 0.0, sp * 0.06 * A); set('head', cr ? -0.15 : 0);
@@ -374,7 +385,10 @@ export class Humanoid {
         const kneeSwingR = Math.max(0, -cp) * (run ? 1.5 : cr ? 0.7 : 0.9);
         set('lHip', baseHip - sp * 0.55 * A, 0, 0.02); set('rHip', baseHip + sp * 0.55 * A, 0, -0.02);
         set('lKnee', baseKnee + 0.1 + kneeSwingL); set('rKnee', baseKnee + 0.1 + kneeSwingR);
-        set('lFoot', (cr ? -0.95 : 0) - 0.1 + sp * 0.2 * A); set('rFoot', (cr ? -0.95 : 0) - 0.1 - sp * 0.2 * A);
+        // foot roll: heel strike (toe up) at contact, toe push-off as the leg trails
+        const rollL = Math.max(0, -sp) * 0.35 - Math.max(0, cp) * 0.25, rollR = Math.max(0, sp) * 0.35 - Math.max(0, -cp) * 0.25;
+        set('lFoot', (cr ? -0.95 : 0) - 0.05 + rollL * A * 1.4); set('rFoot', (cr ? -0.95 : 0) - 0.05 + rollR * A * 1.4);
+        B.x = sp * 0.028 * A;
         const armA = run ? 0.95 : cr ? 0.25 : 0.45;
         set('lShoulder', sp * armA * (moving ? 1 : 0) + (cr ? -0.35 : 0), 0, 0.08); set('rShoulder', -sp * armA * (moving ? 1 : 0) + (cr ? -0.35 : 0), 0, -0.08);
         set('lElbow', run ? -1.35 : cr ? -1.1 : -0.3 - Math.max(0, -sp) * 0.3); set('rElbow', run ? -1.35 : cr ? -1.1 : -0.3 - Math.max(0, sp) * 0.3);
@@ -547,10 +561,38 @@ export class Humanoid {
       out.rElbow[0] = lerp(out.rElbow[0], -0.25 + Math.sin(t * 9) * 0.08 * r, r);
       out.rHand[0] = lerp(out.rHand[0], -0.3, r);
     }
+    // --- whole-body dynamics: lean into acceleration, bank into turns, keep the gaze level
+    const yaw = this.root.rotation.y;
+    let dyaw = yaw - (this._prevYaw ?? yaw); dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+    this._prevYaw = yaw;
+    const yawRate = dt > 0 ? dyaw / dt : 0;
+    const accel = dt > 0 ? (this.speed - (this._prevSpeed ?? this.speed)) / dt : 0;
+    this._prevSpeed = this.speed;
+    const upright = Math.abs(B.rx) < 0.3 && this.state !== 'crawl';
+    this._lean = damp(this._lean ?? 0, upright ? THREE.MathUtils.clamp(accel * 0.035 + this.speed * 0.025, -0.15, 0.3) : 0, 6, dt);
+    this._bank = damp(this._bank ?? 0, upright ? THREE.MathUtils.clamp(-yawRate * this.speed * 0.045, -0.22, 0.22) : 0, 6, dt);
+    out.spine[0] += this._lean; out.neck[0] -= this._lean * 0.7;
+    out.hips[2] += this._bank; out.neck[2] -= this._bank * 0.6;
+    if (upright && this.speed > 0.3) out.neck[0] -= Math.cos(this.phase * 2) * 0.03 * Math.min(1, this.speed / 3);
     this.custom?.(out, B, t);
-    for (const name of JOINTS) { const j = this.j[name]; const v = out[name]; j.rotation.set(v[0], v[1], v[2]); }
-    this.body.position.set(B.x, B.y * this.scale, B.z);
-    this.body.rotation.x = B.rx;
+    // --- per-joint critically-damped springs: removes pops between poses and gives
+    // arms/head natural follow-through while legs stay crisp
+    if (!this._sm) { this._sm = {}; this._sv = {}; for (const n of JOINTS) { this._sm[n] = out[n].slice(); this._sv[n] = [0, 0, 0]; } }
+    const h = Math.min(dt, 1 / 30);
+    for (const name of JOINTS) {
+      const w = SPRING[name] ?? 18, cur = this._sm[name], vel = this._sv[name], tgt = out[name];
+      for (let k = 0; k < 3; k++) {
+        const a = w * w * (tgt[k] - cur[k]) - 2 * w * vel[k];
+        vel[k] += a * h; cur[k] += vel[k] * h;
+      }
+      this.j[name].rotation.set(cur[0], cur[1], cur[2]);
+    }
+    const bs = this._bs || (this._bs = { y: B.y, rx: B.rx, x: B.x, z: B.z });
+    const kb = 1 - Math.exp(-14 * dt);
+    bs.y += (B.y - bs.y) * kb; bs.rx += (B.rx - bs.rx) * (1 - Math.exp(-8 * dt)); bs.x += (B.x - bs.x) * kb; bs.z += (B.z - bs.z) * kb;
+    this.body.position.set(bs.x, bs.y * this.scale, bs.z);
+    this.body.rotation.x = bs.rx;
+    this.body.rotation.z = this._bank * 0.5;
 
     // blink
     this.blinkT -= dt;

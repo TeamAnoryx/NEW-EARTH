@@ -147,6 +147,11 @@ export class Station {
     this.crack = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), M.crack);
     this.crack.position.set(-0.05, 0.15, -0.035); this.crack.rotation.y = Math.PI; door.add(this.crack);
     this.crack2 = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), M.crack); this.crack2.position.set(0, 0.15, 0.035); door.add(this.crack2);
+    // bloody handprints and smears on the corridor side of the glass
+    [[-0.45, 0.35, 0.36, 0, 0.2], [0.35, 0.55, 0.32, 1, -0.3], [0.15, -0.2, 0.3, 2, 0.1], [-0.6, -0.45, 0.28, 3, -0.5], [0.6, 0.0, 0.3, 0, 0.6]].forEach(([x, y, sz, k, rz]) => {
+      const h = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz), M.hands[k]); h.position.set(x, y, 0.03); h.rotation.set(0, 0, rz); h.renderOrder = 3; door.add(h);
+    });
+    [[0.0, 0.7, 0.7, 0], [-0.3, -0.6, 0.6, 2]].forEach(([x, y, sz, k]) => { const b = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz), M.blood[k]); b.position.set(x, y, 0.031); b.renderOrder = 3; door.add(b); });
     door.position.set(0, 1.2, 4.1);
     Q.add(door);
     this.camColliders.push(pane);
@@ -307,6 +312,24 @@ export class Station {
     }
     this._stencilWall(C, '◄ LAB DECK B        HAB RING ►', 3.6, 2.75, 9.28, Math.PI, 4.5);
     this.strip(30, 0.03, 0.03, M.stripRed, 0, 0.05, 9.28, C);
+    for (const z of [5.0, 8.6]) this.strip(30, 0.05, 0.06, M.stripRed, 0, 3.05, z, C);
+    for (const z of [4.5, 9.2]) this.strip(30, 0.04, 0.04, M.stripRed, 0, 2.2, z, C);
+    // drifting smoke, lit red by the emergency beacons
+    {
+      const n = 60, g = new THREE.BufferGeometry(), p = new Float32Array(n * 3), sd = new Float32Array(n);
+      for (let i = 0; i < n; i++) { p[i * 3] = (Math.random() - 0.5) * 26; p[i * 3 + 1] = 0.4 + Math.random() * 2.6; p[i * 3 + 2] = 4.8 + Math.random() * 4.2; sd[i] = Math.random(); }
+      g.setAttribute('position', new THREE.BufferAttribute(p, 3)); g.setAttribute('seed', new THREE.BufferAttribute(sd, 1));
+      const m = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uMap: { value: M.softDot } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        vertexShader: `attribute float seed; uniform float uTime; varying float vA; varying float vS;
+          void main() { vec3 q = position; q.x += sin(uTime * 0.05 + seed * 20.0) * 1.5 + uTime * 0.06 * (seed - 0.5); q.y += sin(uTime * 0.11 + seed * 9.0) * 0.25;
+            vec4 mv = modelViewMatrix * vec4(q, 1.0); gl_PointSize = (900.0 + seed * 900.0) / -mv.z; vA = 0.05 + 0.05 * seed; vS = seed; gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `uniform sampler2D uMap; varying float vA; varying float vS;
+          void main() { float a = texture2D(uMap, gl_PointCoord).a * vA; vec3 c = mix(vec3(0.9, 0.18, 0.12), vec3(0.6, 0.6, 0.65), vS * 0.5); gl_FragColor = vec4(c * a, a); }`,
+      });
+      const haze = new THREE.Points(g, m); haze.frustumCulled = false; C.add(haze);
+      this.updaters.push((t) => (m.uniforms.uTime.value = t));
+    }
     this.strip(30, 0.03, 0.03, M.stripRed, 0, 0.05, 4.32, C);
     // blood everywhere
     const bloodSpots = [[2.4, 6.2, 1.8, 1], [-3, 5.5, 1.3, 0], [5.5, 7.6, 1.6, 2], [-7, 7.2, 1.4, 1], [0.3, 5, 1.0, 0], [8.5, 5.4, 1.2, 2], [-1.5, 8.2, 1.1, 1]];
