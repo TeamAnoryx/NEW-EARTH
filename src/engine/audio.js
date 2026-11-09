@@ -351,6 +351,159 @@ export class Audio {
     n.connect(bp).connect(g).connect(this.sfx); n.start(t, Math.random()); n.stop(t + 0.7);
   }
 
+  // ================================================================ intro / menu sound design
+  _env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+
+  /** Countdown tick: glassy two-partial ping; `final` = deeper, longer hit. */
+  countBeep(final = false) {
+    if (!this.ready) return;
+    const c = this.ctx, t = this.now;
+    [[final ? 440 : 880, 0.18], [final ? 660 : 1760, 0.07]].forEach(([f, v]) => {
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      const g = c.createGain(); this._env(g, t, 0.005, v, final ? 1.4 : 0.45);
+      o.connect(g).connect(this.master); o.connect(g).connect(this.reverbSend); o.start(t); o.stop(t + 1.6);
+    });
+    if (final) this.stinger(0.6);
+  }
+
+  /** Air whoosh with a rising/falling band — for things flying past. */
+  whoosh(dur = 1.2, up = true, vol = 0.5) {
+    if (!this.ready) return;
+    const c = this.ctx, t = this.now;
+    const n = this._noiseSrc(); const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+    bp.frequency.setValueAtTime(up ? 250 : 3000, t); bp.frequency.exponentialRampToValueAtTime(up ? 3200 : 220, t + dur);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(bp).connect(g); g.connect(this.master); g.connect(this.reverbSend); n.start(t, Math.random()); n.stop(t + dur + 0.1);
+  }
+
+  /** Per-letter sci-fi tick (pitch rises across the word). */
+  letterTick(i = 0) {
+    if (!this.ready) return;
+    const c = this.ctx, t = this.now;
+    const o = c.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(600 + i * 90, t); o.frequency.exponentialRampToValueAtTime(1800 + i * 120, t + 0.05);
+    const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 500;
+    const g = c.createGain(); this._env(g, t, 0.002, 0.05, 0.12);
+    o.connect(f).connect(g).connect(this.master); g.connect(this.reverbSend); o.start(t); o.stop(t + 0.2);
+    const n = this._noiseSrc(); const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 5000;
+    const ng = c.createGain(); this._env(ng, t, 0.001, 0.08, 0.05); n.connect(hp).connect(ng).connect(this.master); n.start(t, Math.random()); n.stop(t + 0.1);
+  }
+
+  /** Big impact for title lock-in. */
+  titleHit() {
+    if (!this.ready) return;
+    this.stinger(0.9);
+    const c = this.ctx, t = this.now;
+    [55, 110, 164.8, 220, 329.6].forEach((f, i) => {
+      const o = c.createOscillator(); o.type = i ? 'triangle' : 'sine'; o.frequency.value = f;
+      const g = c.createGain(); this._env(g, t, 0.01, 0.12 / (i + 1), 3.5);
+      o.connect(g).connect(this.master); o.connect(g).connect(this.reverbSend); o.start(t); o.stop(t + 4);
+    });
+  }
+
+  /** ANORYX logo signature: rising shimmer → crystalline chord → sub drop. ~3 s. */
+  logoSting() {
+    if (!this.ready) return;
+    const c = this.ctx, t = this.now;
+    this.whoosh(1.1, true, 0.35);
+    // shimmer arpeggio (pentatonic)
+    [0, 0.12, 0.24, 0.36, 0.48, 0.6].forEach((dt, i) => {
+      const f = [523.3, 659.3, 784, 987.8, 1174.7, 1568][i];
+      const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      const g = c.createGain(); this._env(g, t + 0.5 + dt, 0.004, 0.06, 1.6);
+      o.connect(g).connect(this.master); o.connect(g).connect(this.reverbSend); o.start(t + 0.5 + dt); o.stop(t + 2.6 + dt);
+    });
+    // chord bloom
+    [130.8, 196, 261.6, 329.6, 392].forEach((f, i) => {
+      for (const d of [-7, 7]) {
+        const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d;
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(300, t + 1.1); lp.frequency.exponentialRampToValueAtTime(3500, t + 1.6); lp.frequency.exponentialRampToValueAtTime(600, t + 3.2);
+        const g = c.createGain(); g.gain.setValueAtTime(0.0001, t + 1.1); g.gain.exponentialRampToValueAtTime(0.03 / (1 + i * 0.3), t + 1.3); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.4);
+        o.connect(lp).connect(g).connect(this.master); g.connect(this.reverbSend); o.start(t + 1.1); o.stop(t + 3.5);
+      }
+    });
+    setTimeout(() => this._thump(42, 0.6), 1100);
+  }
+
+  /** Implode suck-in for the logo vanishing. */
+  implode() { this.whoosh(0.6, false, 0.4); setTimeout(() => this._thump(60, 0.3), 550); }
+
+  /** UI sounds: hover, press, toggle on/off, open/close panel. */
+  uiSound(kind = 'press') {
+    if (!this.ready) return;
+    const c = this.ctx, t = this.now;
+    const spec = {
+      hover: [[2200, 2600, 0.02, 0.05]], press: [[900, 1400, 0.07, 0.09], [1800, 2400, 0.03, 0.06]],
+      on: [[700, 1100, 0.06, 0.08], [1100, 1650, 0.05, 0.1]], off: [[1100, 700, 0.06, 0.08], [700, 480, 0.05, 0.1]],
+      open: [[400, 1200, 0.05, 0.18]], close: [[1200, 400, 0.05, 0.16]], play: [[330, 990, 0.08, 0.35], [495, 1485, 0.05, 0.4]],
+    }[kind] || [[1000, 1000, 0.05, 0.08]];
+    spec.forEach(([f0, f1, v, d], i) => {
+      const o = c.createOscillator(); o.type = i ? 'triangle' : 'sine';
+      const st = t + i * 0.045;
+      o.frequency.setValueAtTime(f0, st); o.frequency.exponentialRampToValueAtTime(f1, st + d);
+      const g = c.createGain(); this._env(g, st, 0.003, v, d + 0.05);
+      o.connect(g).connect(this.master); o.start(st); o.stop(st + d + 0.1);
+    });
+  }
+
+  /**
+   * Generative ambient loop for the main console: evolving pad (Am9 → Fmaj7 → Cmaj9 → G6sus),
+   * sub bass, and a sparse bell arpeggio with echo. Runs until stopMenuMusic().
+   */
+  startMenuMusic() {
+    if (!this.ready || this._menu) return;
+    const c = this.ctx;
+    const out = c.createGain(); out.gain.value = 0.0001; out.connect(this.master); out.connect(this.reverbSend);
+    out.gain.exponentialRampToValueAtTime(0.5, this.now + 4);
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 3; lp.connect(out);
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lfoG = c.createGain(); lfoG.gain.value = 500; lfo.connect(lfoG).connect(lp.frequency); lfo.start();
+    const delay = c.createDelay(1.5); delay.delayTime.value = 0.42; const fb = c.createGain(); fb.gain.value = 0.38;
+    delay.connect(fb).connect(delay); delay.connect(out);
+    const chords = [[57, 60, 64, 67, 71], [53, 57, 60, 64, 69], [48, 55, 59, 62, 64], [55, 57, 62, 64, 67]];
+    const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+    const BAR = 8; let next = this.now + 0.1, idx = 0;
+    const state = { out, nodes: [lfo], iv: null };
+    const schedule = () => {
+      if (this._menu !== state) return;
+      while (next < this.now + 3) {
+        const ch = chords[idx % chords.length];
+        ch.forEach((m, i) => {
+          for (const d of [-8, 8]) {
+            const o = c.createOscillator(); o.type = i < 2 ? 'sawtooth' : 'triangle'; o.frequency.value = mtof(m); o.detune.value = d;
+            const g = c.createGain(); g.gain.setValueAtTime(0.0001, next); g.gain.exponentialRampToValueAtTime(0.022, next + 2.5); g.gain.setValueAtTime(0.022, next + BAR - 2); g.gain.exponentialRampToValueAtTime(0.0001, next + BAR + 1.5);
+            o.connect(g).connect(lp); o.start(next); o.stop(next + BAR + 1.6);
+          }
+        });
+        const sub = c.createOscillator(); sub.frequency.value = mtof(ch[0] - 24);
+        const sg = c.createGain(); sg.gain.setValueAtTime(0.0001, next); sg.gain.exponentialRampToValueAtTime(0.09, next + 1.5); sg.gain.exponentialRampToValueAtTime(0.0001, next + BAR + 0.5);
+        sub.connect(sg).connect(out); sub.start(next); sub.stop(next + BAR + 0.6);
+        // bells
+        for (let k = 0; k < 6; k++) {
+          if (Math.random() < 0.35) continue;
+          const bt = next + 0.5 + k * (BAR / 6) + Math.random() * 0.2;
+          const m = ch[(k * 2 + idx) % ch.length] + 24;
+          const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = mtof(m);
+          const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = mtof(m) * 2.76;
+          const g = c.createGain(); g.gain.setValueAtTime(0.0001, bt); g.gain.exponentialRampToValueAtTime(0.03, bt + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, bt + 2.2);
+          const g2 = c.createGain(); g2.gain.value = 0.25;
+          o.connect(g); o2.connect(g2).connect(g); g.connect(out); g.connect(delay);
+          o.start(bt); o2.start(bt); o.stop(bt + 2.3); o2.stop(bt + 2.3);
+        }
+        next += BAR; idx++;
+      }
+    };
+    this._menu = state;
+    schedule(); state.iv = setInterval(schedule, 700);
+  }
+
+  stopMenuMusic(fade = 1.5) {
+    const m = this._menu; if (!m) return;
+    this._menu = null; clearInterval(m.iv);
+    m.out.gain.setTargetAtTime(0.0001, this.now, fade / 4);
+    setTimeout(() => { m.nodes.forEach((n) => { try { n.stop(); } catch { /* stopped */ } }); m.out.disconnect(); }, fade * 1000 + 600);
+  }
+
+  setMusicMuted(muted) { this.musicMuted = muted; if (this.master && this._menu) this._menu.out.gain.setTargetAtTime(muted ? 0.0001 : 0.5, this.now, 0.2); }
+
   stopAll() {
     Object.keys(this._loops).forEach((k) => {
       const l = this._loops[k];

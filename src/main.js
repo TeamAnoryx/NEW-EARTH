@@ -9,14 +9,18 @@ import { Station, AREAS } from './world/station.js';
 import { createEarth, createStars, createSun, createStationExterior } from './world/space.js';
 import { Story } from './game/story.js';
 import { TouchControls, isTouch } from './ui/touch.js';
+import { Intro } from './intro/intro.js';
+import { CREDITS } from './intro/brand.js';
+import { detectTier, FrameGovernor } from './engine/perf.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
 const SETTINGS_KEY = 'new-earth-settings';
 function loadSettings() {
-  try { return Object.assign({ quality: 'high', sens: 1, vol: 0.8, invert: false }, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
-  catch { return { quality: 'high', sens: 1, vol: 0.8, invert: false }; }
+  const def = { quality: 'auto', sens: 1, vol: 0.8, invert: false, music: true };
+  try { return Object.assign(def, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
+  catch { return def; }
 }
 function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* storage unavailable */ } }
 
@@ -37,7 +41,7 @@ class Game {
     this.settings = loadSettings();
     this.isTouch = isTouch();
     document.body.classList.toggle('touch', this.isTouch);
-    if (this.isTouch) { let saved = null; try { saved = localStorage.getItem(SETTINGS_KEY); } catch { /* private mode */ } if (!saved) this.settings.quality = 'medium'; }
+    this.governor = new FrameGovernor(this.renderer);
     if (this.isTouch) {
       this.touch = new TouchControls(this.input, {
         onCrouch: (v) => { if (this.story) this.story.player.forceCrouch = v; },
@@ -53,8 +57,7 @@ class Game {
   }
 
   async boot() {
-    const fill = $('boot-fill'), txt = $('boot-text');
-    const step = async (p, label) => { fill.style.width = `${p}%`; txt.textContent = label; await frame(); await frame(); };
+    const step = async (p) => { this.onBootProgress?.(p / 100); await frame(); };
     await step(8, 'SYNTHESISING MATERIALS…');
     getMaterials();
     await step(25, 'CONSTRUCTING HELIOS-7…');
@@ -68,11 +71,13 @@ class Game {
     // warm up both scenes so the first frames don't hitch
     try { this.renderer.renderer.compile(this.renderer.scene, this.renderer.camera); this.renderer.renderer.compile(this.titleScene, this.titleCam); } catch { /* compile is an optimisation only */ }
     await step(100, 'SYSTEMS NOMINAL');
-    await new Promise((r) => setTimeout(r, 350));
-    $('boot').style.opacity = 0;
-    setTimeout(() => $('boot').classList.add('hidden'), 800);
-    this.toTitle(true);
     this.loop();
+  }
+
+  /** Called when the intro hands over: the main console with its looping score. */
+  showConsole() {
+    if (this.mode === 'title') return;
+    this.toTitle(true, 0);
   }
 
   _buildTitle() {
@@ -94,8 +99,18 @@ class Game {
   }
 
   _bindUI() {
+    $('cred-idea').textContent = CREDITS.ideaBy;
+    // UI sound design: hover (mouse only), press, panel open/close
+    document.addEventListener('pointerover', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      const b = e.target.closest?.('button'); if (b && b !== this._hoverBtn) { this._hoverBtn = b; this.audio.uiSound('hover'); }
+    });
+    document.addEventListener('pointerout', (e) => { if (e.target.closest?.('button') === this._hoverBtn) this._hoverBtn = null; });
+    document.addEventListener('fullscreenchange', () => document.body.classList.toggle('is-fs', !!document.fullscreenElement));
+    const mb = document.querySelector('[data-action="music"]');
+    mb.classList.toggle('on', this.settings.music !== false); mb.setAttribute('aria-pressed', String(this.settings.music !== false));
     document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => this.onAction(b.dataset.action)));
-    document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('.panel').classList.add('hidden')));
+    document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { this.audio.uiSound('close'); b.closest('.panel').classList.add('hidden'); }));
     const q = $('opt-quality'), sens = $('opt-sens'), vol = $('opt-vol'), inv = $('opt-invert');
     const s = this.settings;
     q.value = s.quality; sens.value = s.sens; vol.value = s.vol; inv.checked = s.invert;
@@ -107,7 +122,10 @@ class Game {
 
   applySettings() {
     const s = this.settings;
-    if (this.renderer.qualityName !== s.quality) this.renderer.setQuality(s.quality);
+    const name = s.quality === 'auto' ? (this._autoTier ??= detectTier(this.renderer.renderer).tier) : s.quality;
+    if (this.renderer.qualityName !== name) this.renderer.setQuality(name);
+    this.governor.enabled = s.quality === 'auto';
+    this.governor.reset();
     this.input.sensitivity = s.sens; this.input.invertY = s.invert;
     this.audio.setVolume(s.vol);
     saveSettings(s);
@@ -115,10 +133,19 @@ class Game {
 
   onAction(a) {
     this.audio.init();
-    this.audio.ui('blip');
+    this.audio.uiSound(a === 'start' ? 'play' : ['controls', 'settings', 'credits'].includes(a) ? 'open' : 'press');
     if (a === 'start') this.startGame();
     else if (a === 'controls') $('panel-controls').classList.remove('hidden');
     else if (a === 'settings') $('panel-settings').classList.remove('hidden');
+    else if (a === 'credits') $('panel-credits').classList.remove('hidden');
+    else if (a === 'music') {
+      this.settings.music = this.settings.music === false;
+      const b = document.querySelector('[data-action="music"]');
+      b.classList.toggle('on', this.settings.music); b.setAttribute('aria-pressed', String(this.settings.music));
+      this.audio.uiSound(this.settings.music ? 'on' : 'off');
+      if (this.settings.music && this.mode === 'title') this.audio.startMenuMusic(); else this.audio.stopMenuMusic(0.6);
+      saveSettings(this.settings);
+    } else if (a === 'fullscreen') this.toggleFullscreen();
     else if (a === 'resume') this.resume();
     else if (a === 'restart') { this.resume(); this.retry(); }
     else if (a === 'retry') this.retry();
@@ -126,9 +153,8 @@ class Game {
 
   onEscape() {
     if (this.tablet.open) { this.closeTablet(); return; }
-    if (!$('panel-controls').classList.contains('hidden') || !$('panel-settings').classList.contains('hidden')) {
-      $('panel-controls').classList.add('hidden'); $('panel-settings').classList.add('hidden'); return;
-    }
+    const open = ['panel-controls', 'panel-settings', 'panel-credits'].filter((id) => !$(id).classList.contains('hidden'));
+    if (open.length) { open.forEach((id) => $(id).classList.add('hidden')); this.audio.uiSound('close'); return; }
     if (this.mode === 'play') this.pause();
     else if (this.mode === 'pause') this.resume();
   }
@@ -145,8 +171,16 @@ class Game {
     this.input.requestLock();
   }
 
+  async toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else { await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); await screen.orientation?.lock?.('landscape').catch(() => {}); }
+    } catch { /* not supported here (iPhone Safari) */ }
+  }
+
   async startGame() {
     this.audio.init();
+    this.audio.stopMenuMusic(1.2);
     $('title').classList.add('hidden');
     await this.hud.fade(1, 1.2);
     this.inTitle = false;
@@ -171,7 +205,7 @@ class Game {
     } catch { /* iOS Safari: no fullscreen/orientation lock — the rotate prompt covers it */ }
   }
 
-  toTitle(first = false) {
+  toTitle(first = false, fadeSec = null) {
     this.mode = 'title';
     this.touch?.show(false);
     this.inTitle = true;
@@ -181,9 +215,10 @@ class Game {
     this.renderer.renderPass.scene = this.titleScene;
     this.renderer.renderPass.camera = this.titleCam;
     this.renderer.fx.uDanger.value = 0; this.renderer.fx.uDesat.value = 0;
+    if (this.settings.music !== false) this.audio.startMenuMusic();
     $('title').classList.remove('hidden');
     $('death').classList.add('hidden'); $('pause').classList.add('hidden');
-    this.hud.fade(0, first ? 2.5 : 2);
+    this.hud.fade(0, fadeSec ?? (first ? 2.5 : 2));
   }
 
   die(reason) {
@@ -230,7 +265,10 @@ class Game {
   loop(ts = performance.now()) {
     requestAnimationFrame((t) => this.loop(t));
     this.timer.update(ts);
-    const dt = Math.min(0.05, this.timer.getDelta());
+    const raw = this.timer.getDelta();
+    const dt = Math.min(0.05, raw);
+    if (this.mode === 'boot') return; // the intro owns the screen until the console appears
+    if (this.mode === 'title' || this.mode === 'play' || this.mode === 'dead') this.governor.sample(raw);
     this.t += dt;
     const R = this.renderer;
     if (this.mode === 'title') {
@@ -241,7 +279,7 @@ class Game {
       this.titleCam.position.set(Math.cos(a2) * 115, 62 + Math.sin(t * 0.05) * 4, Math.sin(a2) * 115);
       this.titleCam.lookAt(0, -8, 0);
       const w = innerWidth, h = innerHeight;
-      if (w > 760) this.titleCam.setViewOffset(w, h, -w * 0.2, -h * 0.04, w, h); else this.titleCam.clearViewOffset();
+      if (w > h) this.titleCam.setViewOffset(w, h, -w * (w > 760 ? 0.2 : 0.24), -h * 0.04, w, h); else this.titleCam.clearViewOffset();
     } else if (this.mode === 'play' || this.mode === 'dead') {
       const I = this.input;
       if (this.mode === 'play' && !this.tablet.open) {
@@ -270,7 +308,16 @@ class Game {
 
 const game = new Game();
 window.__game = game; // handy for debugging from the console
-game.boot().catch((e) => {
+const intro = new Intro({ audio: game.audio, isTouch: game.isTouch });
+game.onBootProgress = (p) => intro.setLoad(p);
+const booting = game.boot().catch((e) => {
   console.error(e);
-  $('boot-text').textContent = 'BOOT FAILURE: ' + (e?.message || e);
+  const t = document.querySelector('.in-gate-sub');
+  if (t) t.textContent = 'Could not start: ' + (e?.message || e) + ' — try reloading.';
+  throw e;
 });
+intro.run({ waitForBoot: () => booting, beforeReveal: () => game.showConsole() })
+  .catch((e) => { console.error('Intro failed:', e); document.getElementById('intro')?.remove(); })
+  .then(() => booting)
+  .then(() => game.showConsole())
+  .catch(() => { /* boot failure already reported */ });

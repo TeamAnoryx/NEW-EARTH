@@ -8,7 +8,7 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 export const QUALITY = {
-  low:    { pixelRatio: 0.85, shadows: false, shadowSize: 512,  bloom: false, smaa: false },
+  low:    { pixelRatio: 1.0,  shadows: false, shadowSize: 512,  bloom: false, smaa: false },
   medium: { pixelRatio: 1.35,  shadows: true,  shadowSize: 1024, bloom: true,  smaa: false },
   high:   { pixelRatio: 1.5,  shadows: true,  shadowSize: 2048, bloom: true,  smaa: true },
   ultra:  { pixelRatio: 2.0,  shadows: true,  shadowSize: 2048, bloom: true,  smaa: true },
@@ -102,8 +102,16 @@ export class Renderer {
     this.resize();
   }
 
+  setDynamicPixelRatio(pr) {
+    this.dynamicPR = pr;
+    this.renderer.setPixelRatio(pr);
+    this.composer.setPixelRatio(pr);
+    this.resize();
+  }
+
   setQuality(name) {
     const q = QUALITY[name] || QUALITY.high;
+    this.dynamicPR = undefined;
     this.quality = q;
     this.qualityName = name;
     const dpr = Math.min(window.devicePixelRatio || 1, q.pixelRatio);

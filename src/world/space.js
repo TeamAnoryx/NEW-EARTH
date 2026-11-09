@@ -21,22 +21,22 @@ function earthTextures() {
   return _earthTex;
 }
 
-export function createEarth(radius = 600, clouds = 1.0) {
+export function createEarth(radius = 600, clouds = 1.0, opts = {}) {
   const group = new THREE.Group();
   const T = earthTextures();
   const sunDir = new THREE.Vector3(1, 0.25, 0.35).normalize();
   const uniforms = {
     uTime: { value: 0 }, uSun: { value: sunDir }, uCamPos: { value: new THREE.Vector3() }, uClouds: { value: clouds },
-    dayMap: { value: T.day }, nightMap: { value: T.night }, brcMap: { value: T.brc },
+    dayMap: { value: T.day }, nightMap: { value: T.night }, brcMap: { value: T.brc }, uFade: { value: 1 },
   };
   const surface = new THREE.ShaderMaterial({
-    uniforms,
+    uniforms, transparent: !!opts.fadeable,
     vertexShader: /* glsl */`
       varying vec3 vN; varying vec3 vW; varying vec2 vUv;
       void main() { vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }
     `,
     fragmentShader: /* glsl */`
-      uniform float uTime, uClouds; uniform vec3 uSun, uCamPos;
+      uniform float uTime, uClouds, uFade; uniform vec3 uSun, uCamPos;
       uniform sampler2D dayMap, nightMap, brcMap;
       varying vec3 vN; varying vec3 vW; varying vec2 vUv;
       void main() {
@@ -63,7 +63,7 @@ export function createEarth(radius = 600, clouds = 1.0) {
         // atmospheric in-scatter toward the limb
         float fres = pow(1.0 - max(dot(N, V), 0.0), 2.5);
         col = mix(col, vec3(0.32, 0.58, 1.0) * (0.15 + 1.2 * lit), fres * 0.65);
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(col, uFade);
       }
     `,
   });
@@ -78,10 +78,10 @@ export function createEarth(radius = 600, clouds = 1.0) {
       void main() { vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }
     `,
     fragmentShader: /* glsl */`
-      uniform vec3 uSun; uniform vec3 uCamPos; varying vec3 vN; varying vec3 vW;
+      uniform vec3 uSun; uniform vec3 uCamPos; uniform float uFade; varying vec3 vN; varying vec3 vW;
       void main() {
         vec3 V = normalize(uCamPos - vW);
-        float rim = pow(1.0 - abs(dot(normalize(vN), V)), 3.0);
+        float rim = pow(1.0 - abs(dot(normalize(vN), V)), 3.0) * uFade;
         float day = smoothstep(-0.3, 0.6, dot(normalize(vN), uSun));
         vec3 c = mix(vec3(0.04, 0.1, 0.45), vec3(0.35, 0.62, 1.0), day);
         gl_FragColor = vec4(c * rim * (0.2 + day * 1.8), rim);
@@ -96,6 +96,7 @@ export function createEarth(radius = 600, clouds = 1.0) {
     camera.getWorldPosition(uniforms.uCamPos.value);
   };
   group.userData.sunDir = sunDir;
+  group.userData.uniforms = uniforms;
   return group;
 }
 
@@ -115,20 +116,21 @@ export function createStars(count = 6000, radius = 1800) {
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setAttribute('size', new THREE.BufferAttribute(size, 1));
   const m = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
+    uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     vertexShader: /* glsl */`
       attribute float size; attribute vec3 color; varying vec3 vC; uniform float uTime;
       void main() { vC = color * (0.75 + 0.25 * sin(uTime * 2.0 + position.x)); vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * 1.6; gl_Position = projectionMatrix * mv; }
     `,
     fragmentShader: /* glsl */`
-      varying vec3 vC;
-      void main() { vec2 c = gl_PointCoord - 0.5; float d = length(c); float a = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(vC * a, a); }
+      varying vec3 vC; uniform float uFade;
+      void main() { vec2 c = gl_PointCoord - 0.5; float d = length(c); float a = smoothstep(0.5, 0.0, d) * uFade; gl_FragColor = vec4(vC * a, a); }
     `,
   });
   const pts = new THREE.Points(g, m);
   pts.frustumCulled = false;
   pts.userData.update = (t) => (m.uniforms.uTime.value = t);
+  pts.userData.uniforms = m.uniforms;
   return pts;
 }
 
