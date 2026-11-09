@@ -99,6 +99,8 @@ export class FootageOverlay {
   }
 
   _telemetry() {
+    // self-cleaning if the intro was torn down without destroy() (e.g. an error path removed #intro)
+    if (!this.el.isConnected) { clearInterval(this._tick); return; }
     const q = (s) => this.el.querySelector(s);
     this._clockS += 0.25;
     const s = Math.floor(this._clockS);
@@ -111,7 +113,7 @@ export class FootageOverlay {
 
   /** Tap feedback: radar ripple + target readout where the viewer touched. */
   _scan(e) {
-    if (e.target.closest('button')) return;
+    if (e.target?.closest?.('button')) return;
     const r = document.createElement('div');
     r.className = 'fo-ripple';
     r.style.left = `${e.clientX}px`; r.style.top = `${e.clientY}px`;

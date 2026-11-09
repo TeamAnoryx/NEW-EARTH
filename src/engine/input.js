@@ -38,7 +38,7 @@ export class Input {
     if (!this.enabled || this.locked || this.touch) return;
     try {
       const p = this.canvas.requestPointerLock?.();
-      if (p && p.catch) p.catch(() => {});
+      if (p && p.catch) p.catch((e) => console.info('Pointer lock refused (click the game to retry):', e?.message || e));
     } catch { /* pointer lock unavailable (e.g. iframe) */ }
   }
 
