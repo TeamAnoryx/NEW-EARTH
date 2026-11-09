@@ -352,7 +352,7 @@ export class Audio {
   }
 
   // ================================================================ intro / menu sound design
-  _env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  _envelope(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
 
   /** Countdown tick: glassy two-partial ping; `final` = deeper, longer hit. */
   countBeep(final = false) {
@@ -360,7 +360,7 @@ export class Audio {
     const c = this.ctx, t = this.now;
     [[final ? 440 : 880, 0.18], [final ? 660 : 1760, 0.07]].forEach(([f, v]) => {
       const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f;
-      const g = c.createGain(); this._env(g, t, 0.005, v, final ? 1.4 : 0.45);
+      const g = c.createGain(); this._envelope(g, t, 0.005, v, final ? 1.4 : 0.45);
       o.connect(g).connect(this.master); o.connect(g).connect(this.reverbSend); o.start(t); o.stop(t + 1.6);
     });
     if (final) this.stinger(0.6);
@@ -382,10 +382,10 @@ export class Audio {
     const c = this.ctx, t = this.now;
     const o = c.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(600 + i * 90, t); o.frequency.exponentialRampToValueAtTime(1800 + i * 120, t + 0.05);
     const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 500;
-    const g = c.createGain(); this._env(g, t, 0.002, 0.05, 0.12);
+    const g = c.createGain(); this._envelope(g, t, 0.002, 0.05, 0.12);
     o.connect(f).connect(g).connect(this.master); g.connect(this.reverbSend); o.start(t); o.stop(t + 0.2);
     const n = this._noiseSrc(); const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 5000;
-    const ng = c.createGain(); this._env(ng, t, 0.001, 0.08, 0.05); n.connect(hp).connect(ng).connect(this.master); n.start(t, Math.random()); n.stop(t + 0.1);
+    const ng = c.createGain(); this._envelope(ng, t, 0.001, 0.08, 0.05); n.connect(hp).connect(ng).connect(this.master); n.start(t, Math.random()); n.stop(t + 0.1);
   }
 
   /** Big impact for title lock-in. */
@@ -395,7 +395,7 @@ export class Audio {
     const c = this.ctx, t = this.now;
     [55, 110, 164.8, 220, 329.6].forEach((f, i) => {
       const o = c.createOscillator(); o.type = i ? 'triangle' : 'sine'; o.frequency.value = f;
-      const g = c.createGain(); this._env(g, t, 0.01, 0.12 / (i + 1), 3.5);
+      const g = c.createGain(); this._envelope(g, t, 0.01, 0.12 / (i + 1), 3.5);
       o.connect(g).connect(this.master); o.connect(g).connect(this.reverbSend); o.start(t); o.stop(t + 4);
     });
   }
@@ -409,7 +409,7 @@ export class Audio {
     [0, 0.12, 0.24, 0.36, 0.48, 0.6].forEach((dt, i) => {
       const f = [523.3, 659.3, 784, 987.8, 1174.7, 1568][i];
       const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f;
-      const g = c.createGain(); this._env(g, t + 0.5 + dt, 0.004, 0.06, 1.6);
+      const g = c.createGain(); this._envelope(g, t + 0.5 + dt, 0.004, 0.06, 1.6);
       o.connect(g).connect(this.master); o.connect(g).connect(this.reverbSend); o.start(t + 0.5 + dt); o.stop(t + 2.6 + dt);
     });
     // chord bloom
@@ -440,7 +440,7 @@ export class Audio {
       const o = c.createOscillator(); o.type = i ? 'triangle' : 'sine';
       const st = t + i * 0.045;
       o.frequency.setValueAtTime(f0, st); o.frequency.exponentialRampToValueAtTime(f1, st + d);
-      const g = c.createGain(); this._env(g, st, 0.003, v, d + 0.05);
+      const g = c.createGain(); this._envelope(g, st, 0.003, v, d + 0.05);
       o.connect(g).connect(this.master); o.start(st); o.stop(st + d + 0.1);
     });
   }

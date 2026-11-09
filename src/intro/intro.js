@@ -100,7 +100,7 @@ export class Intro {
     try { screen.orientation?.unlock?.(); } catch (e) { console.info('Orientation unlock not supported:', e?.message || e); }
   }
 
-  _flash(kind = 'cut') {
+  _flashCut(kind = 'cut') {
     const c = $('.in-cut', this.root);
     c.className = `in-cut ${kind}`; void c.offsetWidth; c.classList.add('go');
   }
@@ -149,7 +149,7 @@ export class Intro {
     let slid = false;
     const lastIdx = SEGMENTS.length - 1;
     await playSegments(video, SEGMENTS, {
-      onCut: () => this._flash('cut'),
+      onCut: () => this._flashCut('cut'),
       onStall: (s) => $('.in-buffer', this.root)?.classList.toggle('hidden', !s || this.skipped),
       onTime: (t, i, remain) => {
         if (this.skipped) return;

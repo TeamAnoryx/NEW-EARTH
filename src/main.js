@@ -174,7 +174,7 @@ class Game {
   async toggleFullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else { await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); await screen.orientation?.lock?.('landscape').catch(() => {}); }
+      else { await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); await screen.orientation?.lock?.('landscape').catch((e) => console.info('Orientation lock not available:', e?.message || e)); }
     } catch (e) { console.info('Full screen toggle not supported here:', e?.message || e); this.hud.toast?.('FULL SCREEN NOT SUPPORTED ON THIS BROWSER', 2.5); }
   }
 
@@ -202,7 +202,7 @@ class Game {
       const el = document.documentElement;
       if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
       await screen.orientation?.lock?.('landscape');
-    } catch { /* iOS Safari: no fullscreen/orientation lock — the rotate prompt covers it */ }
+    } catch (e) { console.info('Full screen / orientation lock unavailable (iOS Safari shows the rotate prompt instead):', e?.message || e); }
   }
 
   toTitle(first = false, fadeSec = null) {
