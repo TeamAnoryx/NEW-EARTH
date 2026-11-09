@@ -61,8 +61,87 @@ export class Intro {
       </div>`;
     document.body.appendChild(this.root);
     this.onBootProgress = onBootProgress;
+    // Self-hosted intro media (built by scripts/make-intro.sh) wins over YouTube when present.
+    this.localManifest = fetch('./intro/manifest.json', { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => { if (m) this._prepLocalAudio(m); return m; })
+      .catch((e) => { console.info('No self-hosted intro media; using YouTube embed.', e?.message || e); return null; });
     // start fetching the YouTube API right away so the tap → video gap is short
     this.ytReady = loadYouTubeAPI().then((YT) => this._makePlayers(YT)).catch((e) => { console.warn('Intro footage unavailable:', e.message); return null; });
+  }
+
+  _prepLocalAudio(man) {
+    const a = new Audio();
+    a.src = man.music; a.preload = 'auto'; a.crossOrigin = 'anonymous';
+    a.addEventListener('error', () => console.warn('Intro music failed to load:', man.music));
+    this.localAudio = a;
+  }
+
+  /** Must run inside the tap handler's turn: unlocks media playback on iOS Safari. */
+  _unlockLocalAudio() {
+    const a = this.localAudio; if (!a) return;
+    a.muted = true;
+    a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; })
+      .catch((e) => console.info('Intro music unlock refused:', e?.message || e));
+  }
+
+  /** Route the music element through our mixer so fades work everywhere (iOS ignores element.volume). */
+  _routeLocalAudio() {
+    const ctx = this.audio.ctx, a = this.localAudio;
+    if (!ctx || !a || this._localGain) return;
+    try {
+      const src = ctx.createMediaElementSource(a);
+      this._localGain = ctx.createGain();
+      this._localGain.gain.value = 0.0001;
+      src.connect(this._localGain).connect(this.audio.master);
+    } catch (e) { console.warn('Could not route intro music through the mixer:', e?.message || e); }
+  }
+
+  /** Plays the self-hosted cut. Resolves true when it played to the end, false to fall back. */
+  async _localFootage(scene, man) {
+    const vEl = $('.in-video', this.root);
+    const low = (navigator.deviceMemory || 4) <= 3 || innerHeight < 500 && (devicePixelRatio || 1) < 2;
+    const v = document.createElement('video');
+    v.className = 'in-local';
+    v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+    v.preload = 'auto'; v.disablePictureInPicture = true;
+    v.src = man.video[low ? '480' : '720'];
+    vEl.appendChild(v);
+    const started = await Promise.race([v.play().then(() => true).catch((e) => { console.warn('Self-hosted intro video refused to play:', e?.message || e); return false; }), wait(6000).then(() => false)]);
+    if (!started || this.skipped) { v.remove(); return false; }
+    this._localVideo = v;
+    this._routeLocalAudio();
+    const a = this.localAudio;
+    if (a) {
+      a.currentTime = 0;
+      a.play().then(() => this._localGain?.gain.setTargetAtTime(1, this.audio.now, 0.6))
+        .catch((e) => { console.warn('Intro music refused to play; using synth score:', e?.message || e); this._synthMusic = true; this.audio.startMusic('calm'); });
+    }
+    vEl.classList.add('on');
+    this.overlay?.show();
+    const buf = $('.in-buffer', this.root);
+    v.addEventListener('waiting', () => buf?.classList.remove('hidden'));
+    v.addEventListener('playing', () => buf?.classList.add('hidden'));
+    // keep the music locked to the picture if the video stalls
+    v.addEventListener('waiting', () => a && !a.paused && a.pause());
+    v.addEventListener('playing', () => a && a.paused && !this.skipped && a.play().catch((e) => console.info('Intro music resume refused:', e?.message || e)));
+    let slid = false;
+    await new Promise((resolve) => {
+      const iv = setInterval(() => {
+        if (this.skipped) { clearInterval(iv); resolve(); return; }
+        const t = v.currentTime, segs = man.segments;
+        let i = 0; for (let k = 0; k < segs.length; k++) if (t >= segs[k].start) i = k;
+        this.overlay?.update(i, t - segs[i].start);
+        if (!slid && t >= man.duration - 3.05) { slid = true; this.overlay?.hide(); scene.slideIn(3); this.audio.whoosh(2.8, true, 0.45); }
+        if (v.ended || t >= man.duration - 0.06) { clearInterval(iv); resolve(); }
+      }, 100);
+      v.addEventListener('error', () => { console.warn('Intro video error mid-play'); clearInterval(iv); resolve(); }, { once: true });
+    });
+    if (!slid) { this.overlay?.hide(); scene.slideIn(2.2); this.audio.whoosh(2.2, true, 0.45); }
+    v.pause();
+    vEl.classList.remove('on');
+    scene.fadeSpace(1.4);
+    return true;
   }
 
   setLoad(p) { const i = $('.in-gate-load i', this.root); if (i) i.style.width = `${Math.round(p * 100)}%`; }
@@ -123,6 +202,7 @@ export class Intro {
   }
 
   _rampMusic(to, ms) {
+    if (this._localGain) this._localGain.gain.setTargetAtTime(Math.max(0.0001, to / 85), this.audio.now, ms / 3000);
     const m = this.music; if (!m) return;
     const from = m.getVolume?.() ?? 0, start = performance.now();
     clearInterval(this._volIv);
@@ -134,6 +214,9 @@ export class Intro {
   }
 
   async _footage(scene) {
+    if (this.skipped) return;
+    const man = await Promise.race([this.localManifest, wait(1500).then(() => null)]);
+    if (man && (await this._localFootage(scene, man))) return;
     if (this.skipped) return;
     const players = await Promise.race([this.ytReady, wait(4000).then(() => null)]);
     const vEl = $('.in-video', this.root);
@@ -222,6 +305,7 @@ export class Intro {
     const gate = $('.in-gate', this.root);
     this._synthMusic = false;
     await this._waitForTap();
+    this._unlockLocalAudio();
     this.audio.init();
     this.audio.uiSound('play');
     const fs = this._fullscreen();
@@ -266,6 +350,7 @@ export class Intro {
     const w = $('.in-white', this.root);
     w.classList.add('out');
     try { this.video?.destroy(); this.music?.destroy(); } catch { /* ignore */ }
+    try { this.localAudio?.pause(); this._localVideo?.pause(); this._localVideo?.remove(); } catch (e) { console.info('Intro media cleanup:', e?.message || e); }
     clearInterval(this._volIv);
     this.overlay?.destroy();
     scene.dispose();

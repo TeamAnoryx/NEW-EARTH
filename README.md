@@ -20,7 +20,8 @@ Keyboard still works for testing: **WASD** move · **Mouse** look (click to capt
 ## Intro sequence
 Tap to enter → full screen + landscape lock → 3-2-1 countdown → footage montage (0:00–0:45, 3:46–3:54, 4:10–4:25, 6:44–6:55) with the intro score → the station rises from behind Earth in the last 3 s → **NEW EARTH** builds letter by letter → *Created by ANORYX* / *Creative idea by Ahmed Pasha* → exit-full-screen button → 2 s white-out → **Powered by ANORYX** (3 s) → white fades in 1.3 s to the main console with its looping score.
 
-- Footage and music are **embedded through YouTube's official player** (not downloaded or re-edited), so the intro needs an internet connection. If YouTube is unavailable, refused or slow, the intro switches to a built-in 3D cinematic with a synthesised score.
+- **Best quality: self-hosted cut.** Download the two files from the creators' official links, run `scripts/make-intro.sh <video> <music>` (needs ffmpeg), commit `public/intro/`, and push. The intro then plays your own 720p/480p cut and trimmed music: instant autoplay, no YouTube interface, synced captions. See `public/intro/README.md`.
+- Without those files, footage and music are **embedded through YouTube's official player** (not downloaded or re-edited), so the intro needs an internet connection. If YouTube is unavailable, refused or slow, the intro switches to a built-in 3D cinematic with a synthesised score.
 - Browsers only allow full screen, orientation lock and sound after a user gesture, so the first screen is a one-tap gate. iPhone Safari has no full-screen or orientation lock for web pages; it shows a rotate prompt instead.
 - Replace the stand-in ANORYX emblem by editing `LOGO_MARK` in `src/intro/brand.js`. The credits are in the same file.
 - Quality defaults to **Auto**: a GPU-tier guess plus a live frame-time governor that scales resolution and bloom.

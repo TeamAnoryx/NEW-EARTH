@@ -212,3 +212,6 @@
 .fo-cap { bottom: 24%; width: min(72vw, 900px); }
 @media (max-height: 430px) { .fo-cap { bottom: 30%; } .fo-cap-t { font-size: clamp(18px, 3.9vw, 40px); } .fo-tl .fo-feed { font-size: 9px; } }
 @media (max-width: 700px) { .fo-tl .fo-feed { display: none; } }
+
+/* self-hosted footage */
+.in-video video.in-local { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: none; pointer-events: none; }
