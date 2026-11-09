@@ -175,7 +175,7 @@ class Game {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
       else { await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); await screen.orientation?.lock?.('landscape').catch(() => {}); }
-    } catch { /* not supported here (iPhone Safari) */ }
+    } catch (e) { console.info('Full screen toggle not supported here:', e?.message || e); this.hud.toast?.('FULL SCREEN NOT SUPPORTED ON THIS BROWSER', 2.5); }
   }
 
   async startGame() {

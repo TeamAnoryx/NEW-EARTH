@@ -4,10 +4,11 @@
  */
 let apiPromise = null;
 
-export function loadYouTubeAPI(timeoutMs = 7000) {
+/** Load the IFrame API, retrying once (fresh script tag) on a network failure or timeout. */
+export function loadYouTubeAPI(timeoutMs = 7000, retries = 1) {
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (apiPromise) return apiPromise;
-  apiPromise = new Promise((resolve, reject) => {
+  const attempt = () => new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('YouTube API timed out')), timeoutMs);
     const prev = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => { clearTimeout(timer); prev?.(); resolve(window.YT); };
@@ -16,6 +17,12 @@ export function loadYouTubeAPI(timeoutMs = 7000) {
     s.async = true;
     s.onerror = () => { clearTimeout(timer); reject(new Error('YouTube API blocked or offline')); };
     document.head.appendChild(s);
+  });
+  apiPromise = attempt().catch((e) => {
+    if (retries <= 0) throw e;
+    console.warn('YouTube API load failed, retrying once:', e.message);
+    document.querySelectorAll('script[src="https://www.youtube.com/iframe_api"]').forEach((n) => n.remove());
+    return attempt();
   });
   apiPromise.catch(() => { apiPromise = null; });
   return apiPromise;

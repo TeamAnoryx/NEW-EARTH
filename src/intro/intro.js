@@ -75,7 +75,7 @@ export class Intro {
     return { video, music };
   }
 
-  _gate() {
+  _waitForTap() {
     return new Promise((resolve) => {
       const go = (e) => {
         e?.preventDefault?.();
@@ -91,13 +91,13 @@ export class Intro {
     try {
       const el = document.documentElement;
       if (!document.fullscreenElement) await (el.requestFullscreen?.({ navigationUI: 'hide' }) ?? el.webkitRequestFullscreen?.());
-    } catch { /* not allowed (iOS Safari iPhone): rotate prompt + browser bars remain */ }
-    try { await screen.orientation?.lock?.('landscape'); } catch { /* only works in fullscreen on Android */ }
+    } catch (e) { console.info('Full screen not available here (expected on iPhone Safari):', e?.message || e); }
+    try { await screen.orientation?.lock?.('landscape'); } catch (e) { console.info('Orientation lock not available:', e?.message || e); }
   }
 
   async _exitFullscreen() {
-    try { if (document.fullscreenElement) await document.exitFullscreen(); } catch { /* already out */ }
-    try { screen.orientation?.unlock?.(); } catch { /* unsupported */ }
+    try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (e) { console.warn('Could not exit full screen:', e?.message || e); }
+    try { screen.orientation?.unlock?.(); } catch (e) { console.info('Orientation unlock not supported:', e?.message || e); }
   }
 
   _flash(kind = 'cut') {
@@ -214,7 +214,8 @@ export class Intro {
 
   async run({ waitForBoot, beforeReveal }) {
     const gate = $('.in-gate', this.root);
-    await this._gate();
+    this._synthMusic = false;
+    await this._waitForTap();
     this.audio.init();
     this.audio.uiSound('play');
     const fs = this._fullscreen();
