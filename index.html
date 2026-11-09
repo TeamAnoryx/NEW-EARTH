@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#02040a" />
+  <title>NEW EARTH</title>
+  <link rel="stylesheet" href="./src/ui/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Boot / loading -->
+  <div id="boot" class="screen">
+    <div class="boot-inner">
+      <div class="boot-logo">NEW&nbsp;EARTH</div>
+      <div class="boot-bar"><i id="boot-fill"></i></div>
+      <div id="boot-text" class="boot-text">INITIALISING ORBITAL SYSTEMS…</div>
+    </div>
+  </div>
+
+  <!-- Title -->
+  <div id="title" class="screen hidden">
+    <div class="title-wrap">
+      <div class="title-kicker">HELIOS-7 ORBITAL RESEARCH STATION · 408 KM ABOVE EARTH</div>
+      <h1 class="title-logo"><span>NEW</span><span>EARTH</span></h1>
+      <div class="title-sub">PROLOGUE — OUTBREAK</div>
+      <nav class="menu">
+        <button data-action="start" class="menu-btn primary">BEGIN</button>
+        <button data-action="controls" class="menu-btn">CONTROLS</button>
+        <button data-action="settings" class="menu-btn">SETTINGS</button>
+      </nav>
+      <div class="title-foot">SINGLE PLAYER · OFFLINE MODE · HEADPHONES RECOMMENDED</div>
+    </div>
+  </div>
+
+  <!-- Panels -->
+  <div id="panel-controls" class="panel hidden">
+    <h2>CONTROLS</h2>
+    <table>
+      <tr><td>W A S D</td><td>Move</td></tr>
+      <tr><td>Mouse</td><td>Look (click the screen to capture the mouse)</td></tr>
+      <tr><td>Shift</td><td>Sprint — loud</td></tr>
+      <tr><td>C / Ctrl</td><td>Crouch — silent</td></tr>
+      <tr><td>E</td><td>Interact</td></tr>
+      <tr><td>Space / Enter</td><td>Advance dialogue</td></tr>
+      <tr><td>Tab</td><td>Station map (once found)</td></tr>
+      <tr><td>Esc</td><td>Pause</td></tr>
+    </table>
+    <p class="hint">The infected are blind. They hunt by sound.</p>
+    <button class="menu-btn" data-close>BACK</button>
+  </div>
+
+  <div id="panel-settings" class="panel hidden">
+    <h2>SETTINGS</h2>
+    <label class="row">Graphics quality
+      <select id="opt-quality">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high" selected>High</option>
+        <option value="ultra">Ultra</option>
+      </select>
+    </label>
+    <label class="row">Mouse sensitivity <input id="opt-sens" type="range" min="0.3" max="2.5" step="0.1" value="1" /></label>
+    <label class="row">Master volume <input id="opt-vol" type="range" min="0" max="1" step="0.05" value="0.8" /></label>
+    <label class="row">Invert Y <input id="opt-invert" type="checkbox" /></label>
+    <button class="menu-btn" data-close>BACK</button>
+  </div>
+
+  <!-- In-game HUD -->
+  <div id="hud" class="hidden">
+    <div id="objective"><div class="obj-label">OBJECTIVE</div><div id="obj-text"></div></div>
+    <div id="chapter-card"></div>
+    <div id="prompt" class="hidden"><kbd id="prompt-key">E</kbd><span id="prompt-text"></span></div>
+    <div id="noise" class="hidden">
+      <div class="noise-label">NOISE</div>
+      <div class="noise-bar"><i id="noise-fill"></i><b class="noise-thresh"></b></div>
+    </div>
+    <div id="timer" class="hidden"><div class="timer-label" id="timer-label">DOOR INTEGRITY</div><div class="timer-bar"><i id="timer-fill"></i></div></div>
+    <div id="crosshair"></div>
+    <div id="subtitle" class="hidden"><div id="sub-name"></div><div id="sub-text"></div><div id="sub-next">▸</div></div>
+    <div id="qte" class="hidden"><kbd>E</kbd><div id="qte-text">SEAL THE DOOR</div><div class="qte-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" /><circle id="qte-arc" cx="50" cy="50" r="44" /></svg></div></div>
+    <div id="toast"></div>
+  </div>
+
+  <!-- Station map tablet -->
+  <div id="tablet" class="hidden">
+    <div class="tablet-frame">
+      <div class="tablet-head">
+        <span class="tablet-brand">HELIOS-7 · STATION NAV</span>
+        <span id="tablet-clock">T+00:00</span>
+        <span class="tablet-alert">⚠ BIOHAZARD LOCKDOWN — LAB DECK B</span>
+      </div>
+      <div class="tablet-body">
+        <div class="tablet-decks" id="tablet-decks"></div>
+        <svg id="tablet-map" viewBox="0 0 800 520"></svg>
+        <div class="tablet-info" id="tablet-info"></div>
+      </div>
+      <div class="tablet-foot">[TAB] / [ESC] CLOSE</div>
+    </div>
+  </div>
+
+  <div id="pause" class="screen hidden">
+    <div class="pause-inner">
+      <h2>PAUSED</h2>
+      <button class="menu-btn primary" data-action="resume">RESUME</button>
+      <button class="menu-btn" data-action="controls">CONTROLS</button>
+      <button class="menu-btn" data-action="settings">SETTINGS</button>
+      <button class="menu-btn" data-action="restart">RESTART CHECKPOINT</button>
+    </div>
+  </div>
+
+  <div id="death" class="screen hidden">
+    <div class="death-inner">
+      <h2>INFECTED</h2>
+      <p id="death-reason">They heard you.</p>
+      <button class="menu-btn primary" data-action="retry">RETRY FROM CHECKPOINT</button>
+    </div>
+  </div>
+
+  <div id="fade"></div>
+  <div id="letterbox"><i></i><i></i></div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

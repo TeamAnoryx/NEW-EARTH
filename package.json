@@ -1,0 +1,20 @@
+{
+  "name": "new-earth",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NEW EARTH — a single-player space survival game (Prologue: Outbreak)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:offline": "vite build --mode offline",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.5",
+    "vite-plugin-singlefile": "2.3.3"
+  }
+}
