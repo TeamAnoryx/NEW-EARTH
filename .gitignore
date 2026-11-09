@@ -3,3 +3,4 @@ dist/
 dist-offline/
 .DS_Store
 *.log
+.cto-toolkit/
