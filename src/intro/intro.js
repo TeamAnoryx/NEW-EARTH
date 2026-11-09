@@ -2,6 +2,7 @@ import './intro.css';
 import { loadYouTubeAPI, createPlayer, playSegments, waitUntilPlaying } from './youtube.js';
 import { IntroScene } from './introScene.js';
 import { CREDITS, LOGO_MARK, wordmark, logoBlock } from './brand.js';
+import { FootageOverlay } from './overlay.js';
 
 /** Footage cuts requested for the intro (seconds into the SERENE "Cosmos" video). */
 export const VIDEO_ID = 'a6NqW_JqFwM';
@@ -146,6 +147,7 @@ export class Intro {
     // if the music iframe is refused sound (some iOS versions), use the synth score instead
     setTimeout(() => { if (!this.skipped && (!music || music.__failed || music.getPlayerState?.() !== 1)) { this._synthMusic = true; this.audio.startMusic('calm'); } }, 3000);
     vEl.classList.add('on');
+    this.overlay?.show();
     let slid = false;
     const lastIdx = SEGMENTS.length - 1;
     await playSegments(video, SEGMENTS, {
@@ -153,10 +155,11 @@ export class Intro {
       onStall: (s) => $('.in-buffer', this.root)?.classList.toggle('hidden', !s || this.skipped),
       onTime: (t, i, remain) => {
         if (this.skipped) return;
-        if (!slid && i === lastIdx && remain <= 3.05) { slid = true; scene.slideIn(3); this.audio.whoosh(2.8, true, 0.45); }
+        this.overlay?.update(i, t - SEGMENTS[i][0]);
+        if (!slid && i === lastIdx && remain <= 3.05) { slid = true; this.overlay?.hide(); scene.slideIn(3); this.audio.whoosh(2.8, true, 0.45); }
       },
     });
-    if (!slid) { scene.slideIn(2.2); this.audio.whoosh(2.2, true, 0.45); }
+    if (!slid) { this.overlay?.hide(); scene.slideIn(2.2); this.audio.whoosh(2.2, true, 0.45); }
     try { video.pauseVideo(); } catch { /* ignore */ }
     vEl.classList.remove('on'); // CSS fade
     scene.fadeSpace(1.4);
@@ -167,7 +170,10 @@ export class Intro {
     this._synthMusic = true;
     this.audio.startMusic('calm');
     scene.fadeSpace(2.5);
+    this.overlay?.show();
+    this.overlay?.caption({ kicker: 'HELIOS-7', text: 'ORBITAL RESEARCH STATION', hold: 3 });
     await wait(3500);
+    this.overlay?.hide();
     scene.slideIn(3); this.audio.whoosh(2.8, true, 0.45);
     await wait(3000);
   }
@@ -224,6 +230,7 @@ export class Intro {
     stage.classList.remove('hidden');
     const lowPower = (navigator.deviceMemory || 4) <= 3;
     const scene = (this.scene = new IntroScene($('.in-canvas', this.root), { lowPower }));
+    this.overlay = new FootageOverlay(stage, this.audio);
     await fs;
     // skip control (appears after a moment; returning players can jump straight to the console)
     const skip = $('.in-skip', this.root);
@@ -260,6 +267,7 @@ export class Intro {
     w.classList.add('out');
     try { this.video?.destroy(); this.music?.destroy(); } catch { /* ignore */ }
     clearInterval(this._volIv);
+    this.overlay?.destroy();
     scene.dispose();
     await wait(1300);
     this.root.remove();

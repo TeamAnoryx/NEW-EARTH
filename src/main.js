@@ -309,6 +309,7 @@ class Game {
 const game = new Game();
 window.__game = game; // handy for debugging from the console
 const intro = new Intro({ audio: game.audio, isTouch: game.isTouch });
+window.__intro = intro; // debugging handle
 game.onBootProgress = (p) => intro.setLoad(p);
 const booting = game.boot().catch((e) => {
   console.error(e);
