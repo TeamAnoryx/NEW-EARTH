@@ -111,6 +111,8 @@ export class Audio {
   setAmbienceLevel(v, time = 1) { const l = this._loops.hum; if (l) l.out.gain.setTargetAtTime(v, this.now, time / 3); }
 
   startAlarm() {
+    // the klaxon beeping was removed from play (feedback: no beeping). Kept for reference; enable with alarmEnabled.
+    if (!this.alarmEnabled) return;
     if (!this.ready || this._loops.alarm) return;
     const c = this.ctx;
     const out = c.createGain(); out.gain.value = 0.0; out.connect(this.sfx);
@@ -149,7 +151,14 @@ export class Audio {
     const lfo = c.createOscillator(); lfo.frequency.value = 0.05;
     const lfoG = c.createGain(); lfoG.gain.value = 260; lfo.connect(lfoG).connect(lp.frequency); lfo.start();
     lp.connect(out);
-    const roots = mood === 'calm' ? [55, 82.4, 110, 164.8] : mood === 'tension' ? [41.2, 43.65, 61.7, 87.3] : [36.7, 55, 58.27, 73.4];
+    const LEVEL_MOODS = {
+      l0: [55, 65.41, 82.41, 110],      // A minor, open and still
+      l1: [49, 61.74, 73.42, 98],       // G, warm and low
+      l2: [41.2, 49, 61.74, 82.41],     // E minor, deep and sparse
+      l3: [46.25, 58.27, 69.3, 92.5],   // F# — hopeful lift
+    };
+    const roots = LEVEL_MOODS[mood] || (mood === 'calm' ? [55, 82.4, 110, 164.8] : mood === 'tension' ? [41.2, 43.65, 61.7, 87.3] : [36.7, 55, 58.27, 73.4]);
+    const peaceful = mood in LEVEL_MOODS;
     const nodes = [lfo];
     roots.forEach((f) => {
       for (const d of [-6, 6]) {
@@ -160,9 +169,59 @@ export class Audio {
     // high shimmer
     const sh = c.createOscillator(); sh.type = 'sine'; sh.frequency.value = roots[2] * 8;
     const shg = c.createGain(); shg.gain.value = 0.006; sh.connect(shg).connect(out); sh.start(); nodes.push(sh);
-    out.gain.linearRampToValueAtTime(mood === 'tension' ? 0.9 : 0.7, this.now + 4);
+    out.gain.linearRampToValueAtTime(peaceful ? 0.45 : mood === 'tension' ? 0.9 : 0.7, this.now + 4);
+    if (peaceful) lp.frequency.value = 300;
     this.music.gain.setTargetAtTime(0.55, this.now, 0.5);
     this._loops.music = { out, nodes };
+  }
+
+  /** Peaceful bed for a level (0–3). */
+  startLevelMusic(level) { if (this._levelMood !== level || !this._loops.music) { this._levelMood = level; this.startMusic(`l${level}`); } }
+
+  /**
+   * Infected / terror layer, cross-faded by threat (0 = absent, 1 = they are on you):
+   * a tremolo string cluster, a pounding sub pulse and a sweeping metallic screech.
+   */
+  setThreat(t) {
+    if (!this.ready) return;
+    t = Math.max(0, Math.min(1, t));
+    if (t > 0.02 && !this._terror) this._startTerror();
+    if (!this._terror) return;
+    if (Math.abs(t - this._terror.t) < 0.02) return;
+    const rising = t > this._terror.t;
+    this._terror.t = t;
+    this._terror.out.gain.setTargetAtTime(t * 0.75, this.now, rising ? 0.25 : 0.9);
+    // the calm bed ducks while they are close
+    this.music?.gain.setTargetAtTime(0.55 * (1 - t * 0.7), this.now, 0.5);
+  }
+
+  _startTerror() {
+    const c = this.ctx;
+    const out = c.createGain(); out.gain.value = 0; out.connect(this.master); out.connect(this.reverbSend);
+    const nodes = [];
+    // string cluster with fast tremolo
+    const trem = c.createGain(); trem.gain.value = 0.5;
+    const tl = c.createOscillator(); tl.frequency.value = 7.5; const tlg = c.createGain(); tlg.gain.value = 0.45; tl.connect(tlg).connect(trem.gain); tl.start(); nodes.push(tl);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
+    [220, 233.1, 246.9, 329.6, 349.2].forEach((f, i) => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = (i - 2) * 9; const g = c.createGain(); g.gain.value = 0.035; o.connect(g).connect(bp); o.start(); nodes.push(o); });
+    bp.connect(trem).connect(out);
+    // pounding sub pulse
+    const sub = c.createOscillator(); sub.frequency.value = 38; const sg = c.createGain(); sg.gain.value = 0;
+    const pl = c.createOscillator(); pl.type = 'square'; pl.frequency.value = 2.2; const pg = c.createGain(); pg.gain.value = 0.16; pl.connect(pg).connect(sg.gain);
+    sub.connect(sg).connect(out); sub.start(); pl.start(); nodes.push(sub, pl);
+    // metallic screech sweeping
+    const n = this._noiseSrc(true); const hp = c.createBiquadFilter(); hp.type = 'bandpass'; hp.Q.value = 14; hp.frequency.value = 2400;
+    const sw = c.createOscillator(); sw.frequency.value = 0.13; const swg = c.createGain(); swg.gain.value = 1400; sw.connect(swg).connect(hp.frequency); sw.start();
+    const ng = c.createGain(); ng.gain.value = 0.05; n.connect(hp).connect(ng).connect(out); n.start(); nodes.push(n, sw);
+    this._terror = { out, nodes, t: 0 };
+  }
+
+  stopTerror() {
+    const tr = this._terror; if (!tr) return;
+    this._terror = null;
+    tr.out.gain.setTargetAtTime(0, this.now, 0.4);
+    this.music?.gain.setTargetAtTime(0.55, this.now, 0.5);
+    setTimeout(() => tr.nodes.forEach((x) => { try { x.stop(); } catch (e) { console.info('terror node already stopped', e?.message || e); } }), 2500);
   }
 
   stopMusic(fade = 2) {
@@ -505,6 +564,7 @@ export class Audio {
   setMusicMuted(muted) { this.musicMuted = muted; if (this.master && this._menu) this._menu.out.gain.setTargetAtTime(muted ? 0.0001 : 0.5, this.now, 0.2); }
 
   stopAll() {
+    this.stopTerror();
     Object.keys(this._loops).forEach((k) => {
       const l = this._loops[k];
       if (l.iv) clearInterval(l.iv);

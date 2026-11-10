@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import { createMax, createSean, createAnna, createZombie } from '../characters/humanoid.js';
 import { PlayerController, ThirdPersonCamera, Follower, nearestWalkable } from './controller.js';
 import { saveProgress } from './progress.js';
+import { getMaterials } from '../world/materials.js';
 import { installLevels } from './levels.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const HANG = new Promise(() => {});
+const AREAS_FLOOR = { Q: 0, D: -1.4, S: -4.6, C: -4.6 };
 
 const L1_TASKS = [
   { id: 'door', text: 'Secure the storage door — silently' },
@@ -43,6 +45,8 @@ export class Story {
     this.fAnna = new Follower(this.anna, this.player, 1);
     const fstep = (c) => this.audio.footstep(c.position, c.state === 'crouchWalk' ? 0.08 : 0.3);
     this.sean.onStep = fstep; this.anna.onStep = fstep;
+    this._fstep = fstep;
+    this.lead = this.max; // the character the player controls right now
 
     // suit lamp follows Max's chest
     const L = station.lights.suit;
@@ -83,7 +87,49 @@ export class Story {
   }
 
   /** Fast-forward the current cutscene (6x time, subtitles auto-advance) until control returns. */
-  skipCinematic() { if (document.body.classList.contains('cinematic')) this.ff = true; }
+  /**
+   * SKIP: inside a cutscene, jump straight to the next playable moment (dialogue, title cards and
+   * fades resolve instantly; scripted motion runs at 60x; QTEs succeed). Outside a cutscene it
+   * just skips whoever is talking.
+   */
+  skipCinematic() {
+    if (document.body.classList.contains('cinematic')) { this.ff = true; this.hud.fast = true; }
+    this.hud.clearSub();
+  }
+
+  /** Hand the controls to Sean, Anna or Max. Max (or whoever was led) becomes a follower. */
+  switchControl(name) {
+    const map = { Max: this.max, Sean: this.sean, Anna: this.anna };
+    const ch = map[name];
+    if (!ch || ch === this.lead) return;
+    const old = this.lead;
+    const f = [this.fSean, this.fAnna].find((x) => x.char === ch);
+    if (f) { f.char = old; f.scripted = null; }
+    old.onStep = this._fstep; old.reachTarget = 0;
+    this.player.char = ch; ch.onStep = () => this.player._step();
+    this.player.vel.set(0, 0, 0);
+    this.lead = ch;
+    this.player.camYaw = ch.yaw;
+    this.trail = [ch.position.clone()];
+    this._applyLight();
+    let tag = document.getElementById('ctl-tag');
+    if (ch === this.max) tag?.remove();
+    else {
+      if (!tag) { tag = document.createElement('div'); tag.id = 'ctl-tag'; tag.className = 'ctl-tag'; document.getElementById('hud').appendChild(tag); }
+      tag.style.setProperty('--c', name === 'Sean' ? '#ffa040' : '#ff7fe0');
+      tag.textContent = `YOU ARE ${name.toUpperCase()}`;
+    }
+    this.hud.toast(ch === this.max ? 'CONTROL: MAX' : `CONTROL: ${name.toUpperCase()}`, 1.8);
+  }
+
+  restoreControl() { if (this.lead !== this.max) this.switchControl('Max'); }
+
+  /** Picker for the SWITCH button (Levels 2–3): everyone except who you are now. */
+  async openSwitcher() {
+    const all = [{ name: 'Max', color: '#5ff3ff', role: 'Lead · steady hands' }, { name: 'Sean', color: '#ffa040', role: 'Engineer · strong' }, { name: 'Anna', color: '#ff7fe0', role: 'Biotech · quiet' }];
+    const pick = await this.hud.pickPlayer(all.filter((o) => o.name !== this.lead.opts.name));
+    if (pick) this.switchControl(pick);
+  }
 
   toggleLight() { this.lightOn = !this.lightOn; this._applyLight(); return this.lightOn; }
 
@@ -100,7 +146,8 @@ export class Story {
   }
 
   cinematic(on) {
-    if (!on) this.ff = false;
+    if (!on) { this.ff = false; this.hud.fast = false; }
+    else { this.restoreControl(); this.hud.switchButton(false); }
     this.hud.cinematic(on);
     this.player.enabled = !on;
     if (!on) { this.cam.release(); this.hud.clearSub(); }
@@ -151,9 +198,13 @@ export class Story {
     if (!['l2intro', 'l2ctrl', 'l3'].includes(beat)) { this.darkness = false; if (this.station.blackout) this.station.setBlackout(false); }
     [this.max, this.sean, this.anna].forEach((c) => (c.root.visible = true));
     this.g.tabletEnabled = beat !== 'intro' && beat !== 'door' && beat !== 'search' ? true : this.g.tabletEnabled;
-    this.max.reachTarget = 0; this.sean.custom = this.anna.custom = this.max.custom = null;
+    this.lead.reachTarget = 0; this.sean.custom = this.anna.custom = this.max.custom = null;
     this.fSean.scripted = this.fAnna.scripted = null;
     this.beat = beat;
+    this.restoreControl(); this.hud.switchButton(false);
+    this.clearBlood(); this.deathCine = false; document.body.classList.remove('dying');
+    this.switchAllowed = ['l2intro', 'l2ctrl', 'l3'].includes(beat);
+    document.body.classList.toggle('can-switch', this.switchAllowed);
     if (['door', 'search', 'storage'].includes(beat)) this.checkpoint = beat;
     return this['beat_' + beat]();
   }
@@ -185,7 +236,7 @@ export class Story {
     this.cinematic(true);
     this.hud.objective(null);
     this.audio.startAmbience();
-    this.audio.startMusic('calm');
+    this.audio.startLevelMusic(0);
     this.g.renderer.fx.uDesat.value = 0;
 
     this.cam.camera.position.set(-4.2, 1.6, 2.6);
@@ -201,8 +252,7 @@ export class Story {
     this.cam.shake(0.02);
     await this.wait(0.6);
     // alarm
-    S.redAlert = true; this.audio.startAlarm(); this.audio.setAlarmLevel(0.55, 1);
-    this.audio.stopMusic(3);
+    S.redAlert = true;
     S.lights.qKey.intensity = 2; S._qKeyBase = 2;
     await this.say('HELIOS', 'Warning. Containment breach — Laboratory Deck B. All personnel shelter in place.', 3.8);
     // Max wakes
@@ -281,8 +331,7 @@ export class Story {
     await this.say('Anna', 'Oh god... is that — is that Dr. Okafor?');
     await this.shot(V(0.35, 1.3, 3.45), V(2.3, 0.6, 6.4), 2.2);
     await this.say('Sean', "He's... Max, he's eating him.");
-    this.audio.setAlarmLevel(0.2, 1);
-    this.audio.startMusic('tension');
+    this.audio.startLevelMusic(0);
     // the feeder stops… lifts its head toward the glass
     feeder.c.setState('zIdle', 2.5);
     feeder.c.custom = (P) => { P.neck[0] = -0.3; P.neck[1] = 0.7; P.head[0] = -0.2; };
@@ -319,7 +368,7 @@ export class Story {
       return;
     }
     // slam
-    this.max.reachTarget = 1;
+    this.lead.reachTarget = 1;
     S.glassDoor.fast = true; S.setGlassDoor(0);
     this.audio.doorSlide(V(0, 1, 4.1), true);
     await this.wait(0.35);
@@ -327,7 +376,7 @@ export class Story {
     this.audio.lock(V(-1.3, 1.3, 4));
     S.doorPanelLight.material.emissive.set(0xff2020);
     this.cam.shake(0.06);
-    this.max.reachTarget = 0;
+    this.lead.reachTarget = 0;
     this.zombies.filter((z) => z.group === 'corridor').forEach((z, i) => {
       z.target = V(-0.9 + (i % 3) * 0.85, 0, 4.55 + Math.floor(i / 3) * 0.55);
     });
@@ -358,8 +407,8 @@ export class Story {
       z.c.root.position.set(-0.9 + (i % 3) * 0.85, 0, 4.55 + Math.floor(i / 3) * 0.55); z.c.yaw = Math.PI;
       z.mode = 'rush'; z.target = z.c.root.position.clone(); z.speed = 3;
     });
-    this.audio.startAmbience(); this.audio.startAlarm(); this.audio.setAlarmLevel(0.3, 0.5);
-    this.audio.startMusic('tension');
+    this.audio.startAmbience();
+    this.audio.startLevelMusic(0);
     this.cinematic(false);
     this.hud.fade(0, 0.5);
     this.hud.objective('Search the quarters for anything useful');
@@ -386,9 +435,9 @@ export class Story {
     let found = 0;
     const search = (id, pos, text, line) => this.addInteract({ id, pos, r: 1.1, text, onUse: async () => {
       this.removeInteract(id);
-      this.max.yaw = Math.atan2(pos.x + 0.6 - this.max.position.x, pos.z - this.max.position.z) ;
-      this.max.reachTarget = 1; this.audio.rustle();
-      await this.wait(0.6); this.max.reachTarget = 0;
+      this.max.yaw = Math.atan2(pos.x + 0.6 - this.lead.position.x, pos.z - this.lead.position.z) ;
+      this.lead.reachTarget = 1; this.audio.rustle();
+      await this.wait(0.6); this.lead.reachTarget = 0;
       found++;
       await this.say('Max', line);
     } });
@@ -416,9 +465,13 @@ export class Story {
     this.hud.objective('Study the station map — then PROCEED');
     const tab = this.g.tablet;
     tab.setProceed('PROCEED TO LEVEL 1');
-    tab.onProceed = () => {
+    tab.onProceed = async () => {
       tab.onProceed = null; tab.setProceed(null);
       this.g._tabletClose = null; tab.toggle(false);
+      this.glassTimer && (this.glassTimer.paused = true);
+      this.player.enabled = false;
+      saveProgress(1);
+      await this._guardBeat(this.hud.levelCleared(0, 'PROLOGUE · OUTBREAK'));
       this.start('l1intro');
     };
     let briefed = false;
@@ -465,7 +518,7 @@ export class Story {
     this.max.setState('walk'); await this.tween(0.8, (k) => this.max.root.position.lerpVectors(V(1.3, 0, 2.1), V(2.5, 0, 1.45), k));
     this.max.yaw = Math.PI; this.max.setState('kneel', 5);
     await this.wait(0.4);
-    this.audio.ductClank(this.max.position);
+    this.audio.ductClank(this.lead.position);
     await this._guardBeat(this.hud.fade(1, 0.45));
     this._fromDuct = true;
     this.start('storage');
@@ -533,7 +586,7 @@ export class Story {
     this.glassTimer = null; this.hud.timer(0, false);
     this.player.enabled = false;
     await this._guardBeat(this.hud.fade(1, 0.6));
-    this.audio.ductClank(this.max.position);
+    this.audio.ductClank(this.lead.position);
     this._placeCrew('D', [2.5, -0.35, Math.PI], [2.5, 0.55, Math.PI], [2.55, 0.85, Math.PI]);
     ['max', 'sean', 'anna'].forEach((k) => { this[k].setState('crawl'); this[k].weights = { crawl: 1 }; this[k].snap(); });
     this.trail = [V(2.5, -1.4, 0.85), V(2.5, -1.4, 0.6), V(2.5, -1.4, 0.4)];
@@ -541,7 +594,7 @@ export class Story {
     this.station.setGlassDoor(0, true);
     this.audio.setAlarmLevel(0.12, 2);
     this.audio.setAmbienceLevel(0.3, 2);
-    this.audio.stopMusic(3);
+    this.audio.startLevelMusic(1);
     this.player.camYaw = Math.PI; this.player.camPitch = 0.08; this.cam.dist = 1.5;
     this.cinematic(false);
     this.hud.fade(0, 0.8);
@@ -576,7 +629,7 @@ export class Story {
     this.fSean.active = this.fAnna.active = false;
     this.audio.startAmbience(); this.audio.setAmbienceLevel(0.25, 1);
     this.audio.startAlarm(); this.audio.setAlarmLevel(0.05, 1);
-    this.audio.stopMusic(1);
+    this.audio.startLevelMusic(1);
     this.g.renderer.fx.uDesat.value = 0.1;
     this.cinematic(true);
     this.hud.objective(null);
@@ -601,34 +654,48 @@ export class Story {
     this.hud.chapter('LEVEL 1\nSALVAGE', 2.2);
     this.cinematic(false);
     this.player.camYaw = Math.PI / 2; this.player.camPitch = 0.18;
-    this.hud.objective('Sneak to the door controls — hold C to crouch');
+    this.hud.objective('Ask Sean to close the door — without a sound');
     this.hud.toast('THE INFECTED ARE BLIND · THEY HUNT BY SOUND', 4.5);
-    this.fSean.active = this.fAnna.active = true;
+    this.fSean.active = this.fAnna.active = false; // the crew hold still while one of them goes
     this.stealth = { alerted: false, value: 0, closed: false, locked: false };
     this.player.maxSpeedScale = 1;
-    this.addInteract({ id: 'closeDoor', pos: S.storagePanelPos, r: 0.95, hold: true, text: 'Hold to close the door slowly', onUse: () => {} });
+    this.addInteract({ id: 'closeDoor', pos: S.storagePanelPos, r: 0.95, hold: true, only: ['Sean', 'Anna'], text: 'Hold to close the door slowly', onUse: () => {} });
+    const offerSwitch = () => this.hud.switchButton(true, async () => {
+      this.hud.switchButton(false);
+      const pick = await this.hud.pickPlayer([{ name: 'Sean', color: '#ffa040', role: 'Closest to the door' }, { name: 'Anna', color: '#ff7fe0', role: 'Lightest on her feet' }]);
+      if (!pick) { offerSwitch(); return; }
+      this.switchControl(pick);
+      this.hud.objective(`Close and lock the door as ${pick} — CRAWL for zero noise`);
+      this.hud.toast('CRAWL (X / CRAWL button) = SILENT', 3.5);
+    });
+    offerSwitch();
   }
 
   async _doorClosed() {
     const S = this.station;
     this.removeInteract('closeDoor');
     this.hud.objective('Engage the mag-lock');
-    this.addInteract({ id: 'lockDoor', pos: S.storagePanelPos, r: 0.95, text: 'Engage mag-lock', onUse: () => this._lockDoor() });
+    this.addInteract({ id: 'lockDoor', pos: S.storagePanelPos, r: 0.95, only: ['Sean', 'Anna'], text: 'Engage mag-lock', onUse: () => this._lockDoor() });
   }
 
   async _lockDoor() {
     const S = this.station;
     this.removeInteract('lockDoor');
     this.stealth.locked = true; S.storageDoor.locked = true;
-    this.max.reachTarget = 1;
+    this.lead.reachTarget = 1;
     this.audio.lock(V(6, -3.3, 1.5));
     S.storagePanelLight.material.emissive.set(0x3dff8a);
     this.player.enabled = false;
     await this.wait(0.5);
-    this.max.reachTarget = 0;
+    this.lead.reachTarget = 0;
     if (this.stealth.alerted) return; // handled by the rush logic
     this.stealth.done = true;
     this.hud.noise(0, false);
+    if (this.lead !== this.max) {
+      const who = this.lead.opts.name;
+      await this._guardBeat(this.hud.takeControlBack(`${who} secured the door — silently`));
+      this.restoreControl();
+    }
     // the clunk carries — one of them stirs
     const z = this.zombies[6];
     this.cinematic(true);
@@ -658,7 +725,7 @@ export class Story {
     this.g.renderer.fx.uDanger.value = 0;
     this.fSean.active = this.fAnna.active = true;
     this.hud.objective('Search the storage room for supplies');
-    this.audio.startMusic('calm');
+    this.audio.startLevelMusic(1);
     const items = [
       { id: 'weapons', pos: V(1.0, -4.6, 2.85), text: 'Search the workbench', loot: ['Plasma cutter', 'Crowbar'], line: ['Max', 'A plasma cutter. And a crowbar. That works.'] },
       { id: 'food', pos: V(0.0, -4.6, -4.75), text: 'Search the supply racks', loot: ['Ration packs', 'Water ×6'], line: ['Max', 'Rations and water — a week, if we\'re careful.'] },
@@ -669,8 +736,8 @@ export class Story {
     items.forEach((it) => this.addInteract({ id: it.id, pos: it.pos, r: 1.15, text: it.text, onUse: async () => {
       this.removeInteract(it.id);
       this.player.enabled = false;
-      this.max.reachTarget = 1; this.audio.rustle();
-      await this.wait(0.7); this.max.reachTarget = 0;
+      this.lead.reachTarget = 1; this.audio.rustle();
+      await this.wait(0.7); this.lead.reachTarget = 0;
       it.loot.forEach((l) => this.addItem(l));
       this.completeTask(it.id);
       this.player.enabled = true;
@@ -728,8 +795,7 @@ export class Story {
     [this.sean, this.anna, this.max].forEach((c) => (c.root.position.y = -4.6 + 0.0));
     const lamp = S.lights.dFan; lamp.position.copy(S.lanternPos).add(V(0, 0.35, 0)); lamp.color.set(0xffb070); lamp.distance = 7; lamp.intensity = 6;
     this.suitLamp.intensity = 0;
-    this.audio.startMusic('calm');
-    this.audio.setAlarmLevel(0, 2);
+    this.audio.startLevelMusic(1);
     this.g.renderer.fx.uDesat.value = 0;
     const orbit = { a: 0 };
     this.cam.track(() => {
@@ -756,9 +822,9 @@ export class Story {
     await this._guardBeat(this.hud.fade(1, 2.5));
     this.cam.release();
     this.audio.stopMusic(4);
-    await this._guardBeat(this.hud.chapter('LEVEL 1 COMPLETE\n\nNEXT — LEVEL 2: BLACKOUT', 3.5));
     this.cam.release();
     saveProgress(2);
+    await this._guardBeat(this.hud.levelCleared(1, 'SALVAGE'));
     this.start('l2intro');
   }
 
@@ -774,7 +840,7 @@ export class Story {
     this.player.update(dt, obstacles);
 
     // breadcrumb trail
-    const p = this.max.position;
+    const p = this.lead.position;
     const last = this.trail[this.trail.length - 1];
     if (!last || Math.hypot(last.x - p.x, last.z - p.z) > 0.2) { this.trail.push(p.clone()); if (this.trail.length > 80) this.trail.shift(); }
     const crew = [this.max, this.sean, this.anna];
@@ -786,17 +852,19 @@ export class Story {
 
     // suit lamp
     if (this.suitLamp.intensity > 0) {
-      const chest = this.max.j.chest.getWorldPosition(new THREE.Vector3());
-      const fwd = V(Math.sin(this.max.yaw), 0, Math.cos(this.max.yaw));
+      const chest = this.lead.j.chest.getWorldPosition(new THREE.Vector3());
+      const fwd = V(Math.sin(this.lead.yaw), 0, Math.cos(this.lead.yaw));
       this.suitLamp.position.copy(chest).addScaledVector(fwd, 0.25).add(V(0, 0.15, 0));
       this.suitLamp.target.position.copy(this.suitLamp.position).addScaledVector(fwd, 4).add(V(0, this.area === 'D' ? -0.4 : -1.2, 0));
     }
 
     // safety net: control disabled outside a cutscene for >8 s (a hung script) → give it back
-    const blocked = !this.player.enabled && !document.body.classList.contains('cinematic') && !this.qte && !this.g.tablet.open && this.g.mode === 'play';
+    const blocked = !this.player.enabled && !document.body.classList.contains('cinematic') && !document.body.classList.contains('focus-ui') && !document.getElementById('cleared')?.classList.contains('show') && !this.qte && !this.g.tablet.open && this.g.mode === 'play';
     this._blockedT = blocked ? (this._blockedT || 0) + dt : 0;
-    if (this._blockedT > 8) { this._blockedT = 0; this.player.enabled = true; this.max.reachTarget = 0; console.warn('Control restored by watchdog'); }
+    if (this._blockedT > 8) { this._blockedT = 0; this.player.enabled = true; this.lead.reachTarget = 0; console.warn('Control restored by watchdog'); }
     this._updateZombies(dt);
+    this._updateBlood(dt);
+    this.audio.setThreat(this._threatLevel());
     this._updateInteract(dt);
     this._updateQTE(dt);
     this._updateGlass(dt);
@@ -805,15 +873,156 @@ export class Story {
     // pounding echo while in the duct
     if (this._poundEcho > 0 && this.area === 'D') {
       this._poundEcho -= dt;
-      if (Math.random() < dt * 2) this.audio.impact(V(this.max.position.x, 0, this.max.position.z + 4), 0.12 * (this._poundEcho / 14));
+      if (Math.random() < dt * 2) this.audio.impact(V(this.lead.position.x, 0, this.lead.position.z + 4), 0.12 * (this._poundEcho / 14));
     }
     // audio listener
     const l = this.audio.listener; l.x = this.cam.camera.position.x; l.z = this.cam.camera.position.z; l.yaw = this.player.camYaw;
   }
 
+  // ------------------------------------------------------------------ death cinematic
+  _bloodFx() {
+    if (this._blood) return this._blood;
+    const n = 420, g = new THREE.BufferGeometry();
+    const pos = new Float32Array(n * 3).fill(-999);
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9a0505, size: 0.07, map: getMaterials().softDot, alphaTest: 0.25, transparent: true, opacity: 0.95, depthWrite: false }));
+    pts.frustumCulled = false; this.scene.add(pts);
+    const M = getMaterials();
+    const pools = Array.from({ length: 6 }, (_, i) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), M.blood[i % 3]);
+      m.rotation.x = -Math.PI / 2; m.visible = false; m.renderOrder = 2; this.scene.add(m); return m;
+    });
+    this._blood = { pts, vel: new Float32Array(n * 3), life: new Float32Array(n), pools, next: 0, poolGrow: [] };
+    return this._blood;
+  }
+
+  /** Arterial spray from a point (world space). */
+  _bloodBurst(at, count = 120, power = 2.6) {
+    const B = this._bloodFx(), pos = B.pts.geometry.attributes.position.array;
+    for (let k = 0; k < count; k++) {
+      const i = B.next; B.next = (B.next + 1) % B.life.length;
+      pos[i * 3] = at.x; pos[i * 3 + 1] = at.y; pos[i * 3 + 2] = at.z;
+      const a = Math.random() * Math.PI * 2, up = 0.3 + Math.random() * 0.9, sp = power * (0.3 + Math.random());
+      B.vel[i * 3] = Math.cos(a) * sp; B.vel[i * 3 + 1] = up * sp; B.vel[i * 3 + 2] = Math.sin(a) * sp;
+      B.life[i] = 1.4 + Math.random();
+    }
+  }
+
+  _bloodPool(x, y, z, size) {
+    const B = this._bloodFx(), m = B.pools.find((p) => !p.visible) || B.pools[0];
+    m.position.set(x, y + 0.006 + Math.random() * 0.002, z); m.rotation.z = Math.random() * 6; m.scale.setScalar(0.01); m.visible = true;
+    B.poolGrow.push({ m, size, t: 0 });
+  }
+
+  _updateBlood(dt) {
+    const B = this._blood; if (!B) return;
+    const pos = B.pts.geometry.attributes.position.array, floor = (AREAS_FLOOR[this.area] ?? 0) + 0.01;
+    for (let i = 0; i < B.life.length; i++) {
+      if (B.life[i] <= 0) continue;
+      B.life[i] -= dt;
+      B.vel[i * 3 + 1] -= 9.8 * dt;
+      pos[i * 3] += B.vel[i * 3] * dt; pos[i * 3 + 1] += B.vel[i * 3 + 1] * dt; pos[i * 3 + 2] += B.vel[i * 3 + 2] * dt;
+      if (pos[i * 3 + 1] < floor) { pos[i * 3 + 1] = floor; B.vel[i * 3] *= 0.2; B.vel[i * 3 + 1] = 0; B.vel[i * 3 + 2] *= 0.2; }
+      if (B.life[i] <= 0) pos[i * 3 + 1] = -999;
+    }
+    B.pts.geometry.attributes.position.needsUpdate = true;
+    B.poolGrow = B.poolGrow.filter((g) => { g.t += dt; g.m.scale.setScalar(g.size * Math.min(1, 1 - Math.pow(1 - g.t / 1.4, 3))); return g.t < 1.4; });
+  }
+
+  clearBlood() {
+    const B = this._blood; if (!B) return;
+    B.life.fill(0); B.pts.geometry.attributes.position.array.fill(-999); B.pts.geometry.attributes.position.needsUpdate = true;
+    B.pools.forEach((m) => (m.visible = false)); B.poolGrow = [];
+  }
+
+  /** Death: the infected rush in, the crew fights, blood — three angles, under four seconds. */
+  async playDeath() {
+    this.deathCine = true;
+    this.ff = false; this.hud.fast = false;
+    this.restoreControl();
+    this.hud.cinematic(true); this.hud.clearSub(); this.hud.prompt(null);
+    document.body.classList.add('dying');
+    const after = (sec) => new Promise((r) => this.timers.push({ t: this.time + sec, res: r })); // unguarded: runs after the beat was cancelled
+    const raw = (dur, fn) => new Promise((res) => { const start = this.time; (this._tweens ||= []).push({ tick: () => { const k = Math.min(1, (this.time - start) / dur); fn(k); if (k >= 1) { res(); return true; } return false; } }); });
+    const M = this.max, p = M.position.clone(), fy = p.y;
+    const crew = [this.max, this.sean, this.anna].filter((c) => c.root.visible && c.position.distanceTo(p) < 5);
+    // up to three infected; bring them in from just off-frame if they are far away
+    const near = this.zombies.filter((z) => z.c.root.visible).sort((a, b) => a.c.position.distanceTo(p) - b.c.position.distanceTo(p));
+    const pool = (near.length >= 2 ? near : this.zombies).slice(0, 3);
+    const starts = [], ends = [];
+    pool.forEach((z, i) => {
+      z.mode = 'scene'; z.c.root.visible = true;
+      const target = crew[i % crew.length] || M;
+      const tp = target.position;
+      const ang = Math.atan2(z.c.position.x - tp.x, z.c.position.z - tp.z) || i * 2.1;
+      const s0 = z.c.position.distanceTo(tp) < 4 ? z.c.position.clone() : new THREE.Vector3(tp.x + Math.sin(ang + i) * 3.2, fy, tp.z + Math.cos(ang + i) * 3.2);
+      s0.y = fy;
+      starts.push(s0); ends.push(new THREE.Vector3(tp.x + Math.sin(ang + i) * 0.55, fy, tp.z + Math.cos(ang + i) * 0.55));
+      z.c.root.position.copy(s0); z.c.yaw = Math.atan2(tp.x - s0.x, tp.z - s0.z); z.c.setState('zRun', 10); z.c.speed = 3.5; z.c.snap();
+      z._victim = target;
+    });
+    crew.forEach((c) => { c.setState('alarmed', 10); c.reachTarget = 1; const z = pool.find((q) => q._victim === c) || pool[0]; if (z) c.yaw = Math.atan2(z.c.position.x - c.position.x, z.c.position.z - c.position.z); });
+    this.audio.scream(p); this.audio.setThreat(1);
+    // shot 1 — wide, high: they come out of the dark (0–1.1 s)
+    this.cam.cinematic = null;
+    this.cam.camera.position.set(p.x + 3.4, fy + 2.6, p.z + 3.4);
+    this.cam.shot(new THREE.Vector3(p.x + 2.6, fy + 2.2, p.z + 2.6), new THREE.Vector3(p.x, fy + 1.0, p.z), 1.1, 'linear');
+    await raw(0.9, (k) => pool.forEach((z, i) => z.c.root.position.lerpVectors(starts[i], ends[i], k)));
+    // impact — shot 2: low, close, looking up at the struggle (1.1–2.3 s)
+    pool.forEach((z) => { z.c.setState('zPound', 12); z.c.speed = 0; });
+    crew.forEach((c, i) => { c.setState(i === 0 ? 'kneel' : 'alarmed', 6); });
+    this.audio.impact(p, 1, false); this.cam.shake(0.08);
+    this.g.renderer.fx.uDanger.value = 1;
+    const chest = (c) => c.j.chest.getWorldPosition(new THREE.Vector3());
+    this._bloodBurst(chest(M), 160, 2.8);
+    this.audio.groan(p, 1);
+    const side = new THREE.Vector3(Math.cos(M.yaw), 0, -Math.sin(M.yaw));
+    this.cam.shot(new THREE.Vector3(p.x + side.x * 1.3, fy + 0.45, p.z + side.z * 1.3), new THREE.Vector3(p.x, fy + 1.25, p.z), 0.01);
+    await after(0.55);
+    crew.slice(1).forEach((c) => { this._bloodBurst(chest(c), 110, 2.4); this.audio.scream(c.position); });
+    this._bloodPool(p.x, fy, p.z, 1.6);
+    await after(0.6);
+    // shot 3 — overhead, slow push: pools spreading, it's over (2.3–3.5 s)
+    pool.forEach((z) => z.c.setState('zFeed', 4));
+    crew.forEach((c) => { c.reachTarget = 0; c.setState('dead', 5); });
+    crew.forEach((c, i) => this._bloodPool(c.position.x + (i - 1) * 0.3, fy, c.position.z + 0.2, 1.2 + i * 0.3));
+    this._bloodBurst(new THREE.Vector3(p.x, fy + 0.4, p.z), 80, 1.4);
+    // high corner, kept under the ceiling (AREAS.ceilY) so the frame never goes black
+    const ceil = { Q: 3.0, D: -0.56, S: -1.72, C: -1.72 }[this.area] ?? fy + 2.9;
+    const topY = Math.min(fy + 4.2, ceil - 0.25);
+    this.cam.shot(new THREE.Vector3(p.x + 1.6, topY, p.z + 1.4), new THREE.Vector3(p.x, fy + 0.2, p.z), 0.01);
+    await raw(1.1, (k) => { this.cam.camera.position.set(p.x + 1.6 - k * 0.8, topY - k * 0.35, p.z + 1.4 - k * 0.6); });
+    await this.hud.fade(1, 0.35);
+    this.deathCine = false;
+    document.body.classList.remove('dying');
+    this.hud.cinematic(false);
+  }
+
+  /** 0..1 — how close the infected are to the crew right now (drives the terror music). */
+  _threatLevel() {
+    if (this.g.mode !== 'play' && this.g.mode !== 'dead') return 0;
+    if (this.g.mode === 'dead') return 1;
+    const p = this.lead.position;
+    let t = 0;
+    for (const z of this.zombies) {
+      if (!z.c.root.visible) continue;
+      const d = Math.hypot(z.c.position.x - p.x, z.c.position.z - p.z);
+      const near = Math.max(0, 1 - d / 9);
+      if (z.mode === 'hunt' || (z.mode === 'rush' && z.speed > 1.5)) t = Math.max(t, 0.75 + near * 0.25);
+      else if (z.mode === 'rush') t = Math.max(t, 0.45 * near);
+      else t = Math.max(t, near * 0.35);
+    }
+    if (this.stealth?.alerted || this.doorTimer?.broken) t = 1;
+    else if (this.stealth) t = Math.max(t, Math.min(0.6, this.stealth.value));
+    if (this.doorTimer && !this.doorTimer.broken) t = Math.max(t, 0.5);
+    if (this.glassTimer) t = Math.max(t, 0.35 + (1 - this.glassTimer.v) * 0.5);
+    return t;
+  }
+
   _updateZombies(dt) {
     for (const z of this.zombies) {
       if (!z.c.root.visible) continue;
+      if (z.mode === 'scene') { z.c.update(dt); continue; }
       if (z.group === 'deck') { this._deckZombie(z, dt); continue; }
       if (z.delay > 0) { z.delay -= dt; z.c.update(dt); continue; }
       if (z.mode === 'rush' && z.target) {
@@ -854,10 +1063,11 @@ export class Story {
 
   _updateInteract(dt) {
     if (!this.player.enabled) { this.hud.prompt(null); return; }
-    const p = this.max.position;
+    const p = this.lead.position;
     let best = null, bd = 1e9;
     for (const it of this.interactables) {
       if (!it.enabled) continue;
+      if (it.only && !it.only.includes(this.lead.opts.name)) continue;
       const d = Math.hypot(it.pos.x - p.x, it.pos.z - p.z);
       if (Math.abs(it.pos.y - p.y) > 1.5) continue;
       if (d < it.r && d < bd) { best = it; bd = d; }
@@ -879,7 +1089,7 @@ export class Story {
     const q = this.qte; if (!q || q.done) return;
     q.t += dt;
     this.hud.qte(1 - q.t / q.dur, true);
-    if (this.input.wasPressed('KeyE') || this.input.wasPressed('Space')) { q.done = true; q.res(true); }
+    if (this.ff || this.input.wasPressed('KeyE') || this.input.wasPressed('Space')) { q.done = true; q.res(true); }
     else if (q.t >= q.dur) { q.done = true; q.res(false); }
   }
 
@@ -901,7 +1111,7 @@ export class Story {
 
   _updateStealth(dt) {
     const st = this.stealth; if (!st || st.done) { if (this.area === 'S' && st?.done) this.hud.noise(0, false); return; }
-    const S = this.station, p = this.max.position;
+    const S = this.station, p = this.lead.position;
     // perceived loudness at the nearest dormant infected (sound leaks through the gap)
     const gapOpen = S.storageDoor.openAmt / 0.45;
     let perceived = 0;
@@ -916,12 +1126,12 @@ export class Story {
       S.storageDoor.rate = 0.6; S.setStorageDoor(0);
       perceived = Math.max(perceived, 0.12 + Math.random() * 0.04);
       if (Math.random() < dt * 3) this.audio.footstep(V(6, -4, 0.5), 0.05);
-      this.max.reachTarget = 1;
+      this.lead.reachTarget = 1;
     } else if (!st.closed) {
       S.storageDoor.target = S.storageDoor.openAmt; // stop where released
-      this.max.reachTarget = 0;
+      this.lead.reachTarget = 0;
     }
-    if (!st.closed && S.storageDoor.openAmt <= 0.001) { st.closed = true; this.max.reachTarget = 0; this.audio.impact(V(6, -3.5, 0), 0.15); this._doorClosed(); }
+    if (!st.closed && S.storageDoor.openAmt <= 0.001) { st.closed = true; this.lead.reachTarget = 0; this.audio.impact(V(6, -3.5, 0), 0.15); this._doorClosed(); }
     st.value += (perceived - st.value) * (1 - Math.exp(-10 * dt));
     this.hud.noise(st.value / 0.55 * 0.55, true);
     this.audio.setHeartbeat(st.alerted ? 2.2 : 1.0 + Math.min(1, st.value * 1.5));

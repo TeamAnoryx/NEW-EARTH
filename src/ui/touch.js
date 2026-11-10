@@ -18,6 +18,7 @@ export class TouchControls {
       <div class="t-stick hidden"><i></i></div>
       <button class="t-btn t-act" data-k="KeyE" aria-label="Interact"><span>E</span><em>USE</em></button>
       <button class="t-btn t-crouch" aria-label="Crouch"><svg viewBox="0 0 24 24"><path d="M12 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-3 6h6l1 5h-2l-1 5h-2l-1-5H8l1-5Z"/></svg><em>CROUCH</em></button>
+      <button class="t-btn t-crawl" aria-label="Crawl"><svg viewBox="0 0 24 24"><path d="M6 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm2 0h7l4 3h2M10 13l-2 5M15 13l1 5"/></svg><em>CRAWL</em></button>
       <button class="t-btn t-sprint" data-k="ShiftLeft" aria-label="Sprint"><svg viewBox="0 0 24 24"><path d="M13 3 6 13h5l-1 8 7-10h-5l1-8Z"/></svg><em>SPRINT</em></button>
       <button class="t-btn t-map" aria-label="Station map"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6Zm6-2v14m6-12v14" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><em>MAP</em></button>
       <button class="t-btn t-pause" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg></button>`;
@@ -29,6 +30,8 @@ export class TouchControls {
     this.root.querySelectorAll('[data-k]').forEach((b) => this._bindHold(b, b.dataset.k));
     const cr = this.root.querySelector('.t-crouch');
     cr.addEventListener('pointerdown', (e) => { e.preventDefault(); this.crouch = !this.crouch; cr.classList.toggle('on', this.crouch); this.hooks.onCrouch?.(this.crouch); this._buzz(); });
+    const cw = this.root.querySelector('.t-crawl');
+    cw.addEventListener('pointerdown', (e) => { e.preventDefault(); this.crawl = !this.crawl; cw.classList.toggle('on', this.crawl); this.hooks.onCrawl?.(this.crawl); this._buzz(); });
     this.root.querySelector('.t-map').addEventListener('pointerdown', (e) => { e.preventDefault(); this.hooks.onMap?.(); });
     this.root.querySelector('.t-pause').addEventListener('pointerdown', (e) => { e.preventDefault(); this.hooks.onPause?.(); });
     this.show(false);

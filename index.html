@@ -34,6 +34,7 @@
           <span class="btn-play-text"><b>PLAY</b><small>Prologue · Outbreak</small></span>
         </button>
         <button data-action="continue" class="btn-continue hidden" type="button">CONTINUE · LEVEL <b id="cont-lvl">2</b> ›</button>
+        <div class="lv-row" id="lv-row" aria-label="Levels"></div>
         <div class="menu-row">
           <button data-action="settings" class="btn-icon" type="button" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg><span>Settings</span></button>
           <button data-action="controls" class="btn-icon" type="button" aria-label="Controls"><svg viewBox="0 0 24 24"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6L2 14.5A3 3 0 0 0 7 17l1.6-1.6a2 2 0 0 1 1.4-.6h4a2 2 0 0 1 1.4.6L17 17a3 3 0 0 0 5-2.5l-.7-5.9A4 4 0 0 0 17.3 5Z"/></svg><span>Controls</span></button>
@@ -106,9 +107,21 @@
     <div id="objective"><div class="obj-label">OBJECTIVE</div><div id="obj-text"></div></div>
     <div id="chapter-card"></div>
     <div id="prompt" class="hidden"><kbd id="prompt-key">E</kbd><span id="prompt-text"></span></div>
-    <div id="noise" class="hidden">
-      <div class="noise-label">NOISE</div>
-      <div class="noise-bar"><i id="noise-fill"></i><b class="noise-thresh"></b></div>
+    <div id="noise" class="hidden" aria-label="Noise level">
+      <div class="nz-cap"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path class="nz-w1" d="M16 9a4 4 0 0 1 0 6"/><path class="nz-w2" d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></div>
+      <div class="nz-meter"><div class="nz-segs" id="noise-segs"></div><b class="nz-thresh"><span>HEARD</span></b><i id="noise-fill"></i></div>
+      <div class="nz-val" id="noise-val">0</div>
+      <div class="nz-label">NOISE</div>
+    </div>
+    <div id="switchbar" class="hidden"><button class="sw-open" type="button"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg><span>SWITCH PLAYER</span></button></div>
+    <div id="switcher" class="hidden" role="dialog" aria-label="Switch player">
+      <div class="sw-title">TAKE CONTROL OF</div>
+      <div class="sw-cards" id="sw-cards"></div>
+      <button class="sw-cancel" type="button">CANCEL</button>
+    </div>
+    <div id="takeback" class="hidden" role="dialog" aria-label="Take control back">
+      <div class="tk-note" id="tk-note">Task complete</div>
+      <button class="tk-btn" type="button"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg>TAKE CONTROL BACK</button>
     </div>
     <div id="timer" class="hidden"><div class="timer-label" id="timer-label">DOOR INTEGRITY</div><div class="timer-bar"><i id="timer-fill"></i></div></div>
     <div id="crosshair"></div>
@@ -117,6 +130,7 @@
     <div id="toast"></div>
     <nav id="topbar" aria-label="Game controls">
       <button class="tb-btn tb-skip" data-tb="skip" type="button"><svg viewBox="0 0 24 24"><path d="M5 5l8 7-8 7zM13 5l8 7-8 7z"/></svg><span>SKIP</span></button>
+      <button class="tb-btn tb-switch" data-tb="switch" type="button"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg><span>SWITCH</span></button>
       <button class="tb-btn" data-tb="tasks" type="button"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>TASKS</span></button>
       <button class="tb-btn" data-tb="light" type="button"><svg viewBox="0 0 24 24"><path d="M9 2h6l-1 6h-4zM10 8h4v4l1 10H9l1-10z"/><path d="M4 4l2 2M20 4l-2 2"/></svg><span>LIGHT</span></button>
       <button class="tb-btn" data-tb="pause" type="button"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span>PAUSE</span></button>

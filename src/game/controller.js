@@ -60,10 +60,11 @@ export class PlayerController {
 
   _step() {
     const s = this.char.speed;
-    const loud = this.mode === 'crawl' ? 0.12 : this.mode === 'crouch' ? 0.06 : s > 3 ? 1.0 : 0.42;
+    // crawling on deck plating is silent (zero noise); only the metal duct clanks
+    const loud = this.mode === 'crawl' ? (this.area === 'D' ? 0.12 : 0) : this.mode === 'crouch' ? 0.06 : s > 3 ? 1.0 : 0.42;
     this.noise = Math.max(this.noise, loud);
     const p = this.char.position;
-    if (this.mode === 'crawl') { if (Math.random() < 0.5) this.audio.ductClank(p); }
+    if (this.mode === 'crawl') { if (this.area === 'D' && Math.random() < 0.5) this.audio.ductClank(p); }
     else this.audio.footstep(p, this.mode === 'crouch' ? 0.12 : s > 3 ? 1.0 : 0.5, true);
   }
 
@@ -81,7 +82,8 @@ export class PlayerController {
       if (I.analog) { mx -= I.analog.x; mz -= I.analog.y; }
       if (this.area !== 'D') {
         const crouchHeld = I.isDown('KeyC', 'ControlLeft', 'ControlRight');
-        this.mode = crouchHeld || this.forceCrouch ? 'crouch' : 'stand';
+        if (I.wasPressed('KeyX')) this.forceCrawl = !this.forceCrawl;
+        this.mode = this.forceCrawl ? 'crawl' : crouchHeld || this.forceCrouch ? 'crouch' : 'stand';
       } else this.mode = 'crawl';
     }
     const len = Math.min(1, Math.hypot(mx, mz));

@@ -12,7 +12,7 @@ import { TouchControls, isTouch } from './ui/touch.js';
 import { Intro } from './intro/intro.js';
 import { CREDITS, WORDMARK_SVG } from './intro/brand.js';
 import { detectTier, FrameGovernor } from './engine/perf.js';
-import { loadProgress } from './game/progress.js';
+import { loadProgress, loadCleared, LEVELS } from './game/progress.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -47,6 +47,7 @@ class Game {
     if (this.isTouch) {
       this.touch = new TouchControls(this.input, {
         onCrouch: (v) => { if (this.story) this.story.player.forceCrouch = v; },
+        onCrawl: (v) => { if (this.story) this.story.player.forceCrawl = v; },
         onMap: () => { if (this.tablet.open) this.closeTablet(); else if (this.tabletEnabled && this.story?.player.enabled) this.openTablet(null); },
         onPause: () => (this.mode === 'pause' ? this.resume() : this.mode === 'play' && this.pause()),
         onTap: () => this.hud.advance(),
@@ -144,7 +145,7 @@ class Game {
   onAction(a) {
     this.audio.init();
     this.audio.uiSound(a === 'start' ? 'play' : ['controls', 'settings', 'credits'].includes(a) ? 'open' : 'press');
-    if (a === 'start') this.startGame(1);
+    if (a === 'start') this.startGame(0);
     else if (a === 'continue') this.startGame(loadProgress());
     else if (a === 'controls') $('panel-controls').classList.remove('hidden');
     else if (a === 'settings') $('panel-settings').classList.remove('hidden');
@@ -186,6 +187,7 @@ class Game {
   onTopbar(id, btn) {
     this.audio.uiSound('press');
     if (id === 'skip') this.story?.skipCinematic();
+    else if (id === 'switch') { if (this.story?.switchAllowed && this.story.player.enabled) this.story.openSwitcher(); }
     else if (id === 'tasks') this.hud.toggleTasks();
     else if (id === 'light') { const on = this.story?.toggleLight(); btn.classList.toggle('on', !!on); this.audio.uiSound(on ? 'on' : 'off'); }
     else if (id === 'pause') { if (this.mode === 'pause') this.resume(); else if (this.mode === 'play') this.pause(); }
@@ -271,7 +273,7 @@ class Game {
     this.input.requestLock();
     this.story.checkpoint = 'intro';
     this.story.inventory = [];
-    this.story.start(level >= 3 ? 'l3' : level === 2 ? 'l2intro' : 'intro');
+    this.story.start((LEVELS[level] || LEVELS[0]).beat);
   }
 
   async _goFullscreen() {
@@ -294,8 +296,15 @@ class Game {
     this.renderer.renderPass.camera = this.titleCam;
     this.renderer.fx.uDanger.value = 0; this.renderer.fx.uDesat.value = 0;
     if (this.settings.music !== false) this.audio.startMenuMusic();
-    const lvl = loadProgress(); $('cont-lvl').textContent = String(lvl);
-    document.querySelector('.btn-continue').classList.toggle('hidden', lvl < 2);
+    const lvl = loadProgress(), cleared = loadCleared();
+    $('cont-lvl').textContent = String(lvl);
+    document.querySelector('.btn-continue').classList.toggle('hidden', lvl < 1);
+    $('lv-row').innerHTML = LEVELS.map((L) => {
+      const st = L.n <= cleared ? 'cleared' : L.n === lvl ? 'next' : L.n > lvl ? 'locked' : '';
+      const sub = st === 'cleared' ? '✓ CLEARED' : st === 'next' ? '▶ CONTINUE' : st === 'locked' ? 'LOCKED' : 'PLAY';
+      return `<button class="lv-chip ${st}" type="button" data-level="${L.n}" ${st === 'locked' ? 'disabled' : ''}><b>LEVEL ${L.n}</b><small>${L.name} · ${sub}</small></button>`;
+    }).join('');
+    $('lv-row').querySelectorAll('.lv-chip:not(.locked)').forEach((b) => (b.onclick = () => { this.audio.init(); this.audio.uiSound('play'); this.startGame(+b.dataset.level); }));
     $('title').classList.remove('hidden');
     $('death').classList.add('hidden'); $('pause').classList.add('hidden');
     this.hud.fade(0, fadeSec ?? (first ? 2.5 : 2));
@@ -311,11 +320,13 @@ class Game {
     this.audio.setHeartbeat(0);
     this.story.cam.shake(0.1);
     this.renderer.fx.uDanger.value = 1;
-    setTimeout(() => {
+    const show = () => {
+      if (this.mode !== 'dead') return;
       this.input.exitLock();
       $('death-reason').textContent = reason;
       $('death').classList.remove('hidden');
-    }, 900);
+    };
+    this.story.playDeath().then(show, (e) => { console.error('Death cinematic failed:', e); show(); });
   }
 
   async retry() {
@@ -371,7 +382,7 @@ class Game {
         if (I.wasPressed('Tab') && this.tabletEnabled && this.story.player.enabled) this.openTablet(null);
         if (I.wasPressed('KeyF')) { const on = this.story.toggleLight(); document.querySelector('[data-tb="light"]')?.classList.toggle('on', !!on); }
         if (I.wasPressed('KeyJ')) this.hud.toggleTasks();
-        const ff = this.story.ff ? 6 : 1;
+        const ff = this.story.ff ? 60 : 1;
         if (ff > 1) this.hud.advance();
         this.story.update(dt * ff);
         this.touch?.setMapAvailable(this.tabletEnabled);
@@ -379,10 +390,10 @@ class Game {
         I.consumeMouse();
         if (I.wasPressed('Tab')) this.closeTablet();
       } else {
-        this.story.update(dt * 0.25);
+        this.story.update(dt * (this.story.deathCine ? 1 : 0.25));
       }
       this.station.update(this.t, dt, R.camera);
-      this.story.cam.update(dt * (this.story.ff ? 6 : 1), this.story.player);
+      this.story.cam.update(dt * (this.story.ff ? 60 : 1), this.story.player);
     } else if (this.mode === 'pause') {
       this.input.consumeMouse();
     }

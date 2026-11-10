@@ -47,7 +47,9 @@ export class HUD {
   }
 
   _showLine(name, text, hold) {
+    if (this.fast) return Promise.resolve(); // skipping: lines resolve instantly
     return new Promise((res) => {
+      document.body.classList.add('talking');
       const box = $('subtitle'), n = $('sub-name'), t = $('sub-text');
       box.classList.remove('hidden');
       n.textContent = name ? name.toUpperCase() : '';
@@ -60,7 +62,7 @@ export class HUD {
         if (i >= text.length) clearInterval(this._typer);
       }, 22);
       const dur = hold ?? Math.max(1.8, 0.9 + text.length * 0.052);
-      const finish = () => { clearTimeout(this._subTimer); clearInterval(this._typer); this._advance = null; this._finish = null; res(); };
+      const finish = () => { clearTimeout(this._subTimer); clearInterval(this._typer); this._advance = null; this._finish = null; document.body.classList.remove('talking'); res(); };
       this._finish = finish;
       this._subTimer = setTimeout(finish, dur * 1000);
       this._advance = () => {
@@ -72,6 +74,8 @@ export class HUD {
 
   advance() { this._advance?.(); }
   clearSub() {
+    document.body.classList.remove('talking');
+    $('chapter-card').classList.remove('show');
     $('subtitle').classList.add('hidden'); clearInterval(this._typer); clearTimeout(this._subTimer);
     this._subGen = (this._subGen || 0) + 1; // drop queued lines
     const f = this._finish; this._finish = null; this._advance = null; f?.(); // release whoever awaits the current one
@@ -80,6 +84,7 @@ export class HUD {
 
   chapter(text, dur = 3.5) {
     const c = $('chapter-card');
+    if (this.fast) { c.classList.remove('show'); return Promise.resolve(); }
     c.textContent = text; c.classList.add('show');
     return new Promise((res) => setTimeout(() => { c.classList.remove('show'); setTimeout(res, 1200); }, dur * 1000));
   }
@@ -89,12 +94,67 @@ export class HUD {
     clearTimeout(this._toastT); this._toastT = setTimeout(() => t.classList.remove('show'), dur * 1000);
   }
 
+  /** Vertical segmented noise meter (left edge). 0.55 = the infected hear you. */
   noise(v, visible = true) {
-    $('noise').classList.toggle('hidden', !visible);
+    const el = $('noise');
+    el.classList.toggle('hidden', !visible);
     if (!visible) return;
-    const f = $('noise-fill');
-    f.style.width = `${Math.min(100, v * 100)}%`;
-    f.style.background = v > 0.55 ? '#ff3b3b' : v > 0.35 ? '#ffb547' : '#5ff3ff';
+    const segs = $('noise-segs');
+    if (!segs.children.length) segs.innerHTML = Array.from({ length: 22 }, (_, i) => `<i style="--k:${i / 21}"></i>`).join('');
+    const x = Math.max(0, Math.min(1, v)), lit = Math.round(x * 22);
+    [...segs.children].forEach((s, i) => s.classList.toggle('on', i < lit));
+    $('noise-fill').style.transform = `scaleY(${x})`;
+    $('noise-val').textContent = String(Math.round(x * 100));
+    el.classList.toggle('warn', x > 0.35 && x <= 0.55);
+    el.classList.toggle('loud', x > 0.55);
+    el.classList.toggle('silent', x < 0.02);
+  }
+
+  /** Full white-out: CONGRATS — LEVEL n CLEARED. Resolves when the white has faded away again. */
+  levelCleared(n, name) {
+    let el = document.getElementById('cleared');
+    if (!el) { el = document.createElement('div'); el.id = 'cleared'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="cl-in"><div class="cl-k">CONGRATS</div><div class="cl-n">LEVEL ${n}</div><div class="cl-s">CLEARED</div><div class="cl-name">${name}</div></div>`;
+    el.className = 'show';
+    this.audio.titleHit?.();
+    return new Promise((res) => {
+      setTimeout(() => this.audio.logoSting?.(), 700);
+      setTimeout(() => { el.className = 'show out'; }, 3600);
+      setTimeout(() => { el.className = ''; res(); }, 4500);
+    });
+  }
+
+  /** Character picker. options: [{ name, color, role }]; resolves with the chosen name or null. */
+  pickPlayer(options) {
+    const box = $('switcher'), cards = $('sw-cards');
+    document.body.classList.add('focus-ui');
+    cards.innerHTML = options.map((o, i) => `<button class="sw-card" type="button" data-name="${o.name}" style="--c:${o.color};--i:${i}">
+      <span class="sw-face">${o.name[0]}</span><b>${o.name.toUpperCase()}</b><small>${o.role}</small></button>`).join('');
+    box.classList.remove('hidden');
+    this.audio.uiSound('open');
+    return new Promise((res) => {
+      const done = (v) => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); this.audio.uiSound(v ? 'play' : 'close'); res(v); };
+      cards.querySelectorAll('.sw-card').forEach((b) => (b.onclick = () => done(b.dataset.name)));
+      box.querySelector('.sw-cancel').onclick = () => done(null);
+    });
+  }
+
+  /** Show/hide the floating SWITCH PLAYER button; onClick fires when pressed. */
+  switchButton(visible, onClick) {
+    const bar = $('switchbar');
+    bar.classList.toggle('hidden', !visible);
+    bar.querySelector('.sw-open').onclick = visible ? () => { this.audio.uiSound('press'); onClick?.(); } : null;
+  }
+
+  /** Blur the game and wait for TAKE CONTROL BACK. */
+  takeControlBack(note) {
+    const box = $('takeback');
+    $('tk-note').textContent = note;
+    box.classList.remove('hidden'); document.body.classList.add('focus-ui');
+    this.audio.uiSound('on');
+    return new Promise((res) => {
+      box.querySelector('.tk-btn').onclick = () => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); this.audio.uiSound('play'); res(); };
+    });
   }
 
   timer(v, visible = true, label = 'DOOR INTEGRITY') {
@@ -136,6 +196,7 @@ export class HUD {
 
   fade(to, dur = 1) {
     const f = $('fade');
+    if (this.fast) dur = Math.min(dur, 0.05);
     f.style.transition = `opacity ${dur}s ease`;
     f.style.opacity = to;
     return new Promise((res) => setTimeout(res, dur * 1000));

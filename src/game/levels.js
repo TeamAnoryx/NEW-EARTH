@@ -80,12 +80,12 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     const c = z.c, pos = c.root.position;
     if (z.mode === 'off') { c.root.visible = false; return; }
     if (!this.deckAI) { c.speed = 0; c.setState('zIdle', 3); c.update(dt); return; } // cutscene: AI paused
-    const max = this.max.position;
+    const max = this.lead.position;
     const dx = max.x - pos.x, dz = max.z - pos.z, d = Math.hypot(dx, dz);
     // perception: noise + flashlight warmth in the dark (blind, but not senseless)
     let heard = this.player.noise * 2.0 * Math.exp(-d / 5);
     if (this.lightOn && this.darkness && d < 6.5) {
-      const fwd = new THREE.Vector2(Math.sin(this.max.yaw), Math.cos(this.max.yaw));
+      const fwd = new THREE.Vector2(Math.sin(this.lead.yaw), Math.cos(this.lead.yaw));
       const to = new THREE.Vector2(-dx, -dz).normalize();
       if (fwd.dot(to) > 0.8) heard += 0.75 * (1 - d / 6.5);
     }
@@ -150,7 +150,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this.audio.setHeartbeat(hunting ? 2.2 : a.shown > 0.3 ? 1.3 : 0.9);
     a.detect = 0;
     // zone triggers
-    const p = this.max.position;
+    const p = this.lead.position;
     for (const zt of this.zones || []) if (!zt.done && zt.test(p)) { zt.done = true; zt.fn(); }
   };
 
@@ -167,7 +167,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this._placeCrew('C', [-1.4, 0.6, -Math.PI / 2], [-2.4, 1.4, -Math.PI / 2], [-4.7, 2.4, -Math.PI / 2]);
     if (!this.inventory?.length) ['Plasma cutter', 'Crowbar', 'Rations', 'EVA vests', 'Med-kit'].forEach((n) => this.addItem(n));
     this.setTasks('LEVEL 2 · BLACKOUT', L2_TASKS);
-    this.audio.stopMusic(1); this.audio.startAmbience(); this.audio.setAmbienceLevel(0.3, 1); this.audio.startAlarm(); this.audio.setAlarmLevel(0.05, 1);
+    this.audio.startLevelMusic(2); this.audio.startAmbience(); this.audio.setAmbienceLevel(0.3, 1); this.audio.startAlarm(); this.audio.setAlarmLevel(0.05, 1);
     this.cam.camera.position.set(-0.2, -3.2, 3.2);
     this.cam.shot(V(-0.2, -3.2, 3.2), V(-4.2, -3.6, 1.8), 0);
     this.hud.fade(0, 0.6);
@@ -175,6 +175,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     await this.say('Anna', 'Breaker\'s here. When the lights die, so does the hum — they\'ll be deaf and blind in the dark.', 3.6);
     await this.say('Max', 'Lights off near them. Crouch. One step at a time.', 2.4);
     this.cinematic(false);
+    this.hud.toast('NEW: SWITCH PLAYER — top bar', 3);
     this.player.camYaw = -Math.PI / 2 + 0.3; this.player.camPitch = 0.15;
     this.fSean.active = this.fAnna.active = true;
     this.hud.objective('Cut the deck power at the breaker');
@@ -185,11 +186,11 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     const S = this.station;
     this.removeInteract('breaker');
     this.cinematic(true);
-    this.max.reachTarget = 1;
+    this.lead.reachTarget = 1;
     await this.tween(0.5, (k) => (S.breakerLever.rotation.z = -k * 1.2));
     this.audio.impact(S.breakerSpot, 0.8, true);
     this.audio.whoosh(1.6, false, 0.4);
-    this.max.reachTarget = 0;
+    this.lead.reachTarget = 0;
     S.setBlackout(true);
     this.darkness = true;
     this.audio.setAlarmLevel(0, 0.5); this.audio.setAmbienceLevel(0.04, 2);
@@ -214,10 +215,10 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this.zones.push({ test: (p) => p.x > 14.6, fn: () => { this.completeTask('spine'); this.hud.objective('Find an aux power fuse — the alcove on the right'); } });
     this.addInteract({ id: 'fuse', pos: S.fuseSpot, r: 1.0, text: 'Search the fuse locker', onUse: async () => {
       this.removeInteract('fuse');
-      this.player.enabled = false; this.max.reachTarget = 1; this.audio.rustle();
+      this.player.enabled = false; this.lead.reachTarget = 1; this.audio.rustle();
       this.player.noise = Math.max(this.player.noise, 0.45); // rummaging makes noise
       await this.wait(1.1);
-      this.max.reachTarget = 0; this.player.enabled = true;
+      this.lead.reachTarget = 0; this.player.enabled = true;
       this.addItem('Aux fuse'); this.completeTask('fuse');
       S.fuseLight.material.emissiveIntensity = 0;
       this.hud.objective('Reach the control room');
@@ -233,7 +234,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     const restarting = this.area !== 'C' || !this.darkness;
     this._deckSetup({ blackout: true, ctrlPower: false, alarm: false, ctrlClosed: false, bayOpen: false, bayZombies: false });
     this._storageDoorObstacle(false); S.setStorageDoor(0.95, true);
-    if (restarting || this.max.position.x < 28) this._placeCrew('C', [29.4, 0, Math.PI / 2], [28.6, 0.6, Math.PI / 2], [28.6, -0.6, Math.PI / 2]);
+    if (restarting || this.lead.position.x < 28) this._placeCrew('C', [29.4, 0, Math.PI / 2], [28.6, 0.6, Math.PI / 2], [28.6, -0.6, Math.PI / 2]);
     this.addItem('Aux fuse');
     ['breaker', 'door2', 'spine', 'fuse'].forEach((id) => { const t = this.taskList?.find((x) => x.id === id); if (t) t.done = true; });
     if (!this.taskList || this.levelName !== 'LEVEL 2 · BLACKOUT') this.setTasks('LEVEL 2 · BLACKOUT', L2_TASKS.map((t, i) => ({ ...t, done: i < 4 })));
@@ -254,8 +255,8 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this.hud.objective('Install the fuse in the aux cabinet');
     this.addInteract({ id: 'power', pos: S.fuseSocketSpot, r: 1.0, text: 'Install the aux fuse', onUse: async () => {
       this.removeInteract('power');
-      this.max.reachTarget = 1; this.audio.impact(S.fuseSocketSpot, 0.3, true);
-      await this.wait(0.6); this.max.reachTarget = 0;
+      this.lead.reachTarget = 1; this.audio.impact(S.fuseSocketSpot, 0.3, true);
+      await this.wait(0.6); this.lead.reachTarget = 0;
       this.audio.lock(S.fuseSocketSpot);
       S.ctrlPower = true; S.setArea('C');
       S.auxLight.material.emissive.set(0x3dff8a);
@@ -348,8 +349,8 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this.audio.impact(V(28, -3.5, 0), 1, true); this.cam.shake(0.05);
     await this.say('Anna', 'The signal — every one of them heard it.', 2);
     this.completeTask('signal');
-    await this._guardBeat(this.hud.chapter('LEVEL 2 COMPLETE\n\nNEXT — LEVEL 3: NEW EARTH', 3));
     saveProgress(3);
+    await this._guardBeat(this.hud.levelCleared(2, 'BLACKOUT'));
     this.start('l3');
   };
 
@@ -367,7 +368,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     if (!this.inventory?.length) ['Plasma cutter', 'EVA vests', 'Med-kit'].forEach((n) => this.addItem(n));
     this.setTasks('LEVEL 3 · NEW EARTH', L3_TASKS);
     this.lightOn = true; this._applyLight();
-    this.audio.startMusic('tension');
+    this.audio.startLevelMusic(3);
     this.cinematic(true);
     this.cam.camera.position.set(30.5, -3.0, -2.5);
     this.cam.shot(V(30.5, -3.0, -2.5), V(28, -3.4, 0), 0);
@@ -405,10 +406,10 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     }
     const bh = this.bayHold;
     if (bh && !bh.done) {
-      if (this.doorHold?.active && this.interactables.some((i) => i.id === 'baydoor')) { bh.p += dt / 3; this.max.reachTarget = 1; this.hud.qte(bh.p, true, 'OVERRIDING'); }
-      else { this.max.reachTarget = 0; if (bh.p > 0) this.hud.qte(bh.p, true, 'KEEP HOLDING'); }
+      if (this.doorHold?.active && this.interactables.some((i) => i.id === 'baydoor')) { bh.p += dt / 3; this.lead.reachTarget = 1; this.hud.qte(bh.p, true, 'OVERRIDING'); }
+      else { this.lead.reachTarget = 0; if (bh.p > 0) this.hud.qte(bh.p, true, 'KEEP HOLDING'); }
       if (bh.p >= 1) {
-        bh.done = true; this.hud.qte(0, false); this.max.reachTarget = 0;
+        bh.done = true; this.hud.qte(0, false); this.lead.reachTarget = 0;
         this.removeInteract('baydoor');
         this.station.setBayDoor(true); this.audio.doorSlide(V(33, -3.5, -6), false);
         this.completeTask('baydoor');
@@ -445,7 +446,8 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     await this.tween(1.6, (k) => { S.pod.position.z = -14.4 - k * k * 6; S.pod.position.y = -3.3 + Math.sin(k * 20) * 0.02; });
     await this._guardBeat(this.hud.fade(1, 0.6));
     S.pod.position.set(33, -3.3, -14.4);
-    saveProgress(3);
+    saveProgress(4); // level 3 cleared
+    await this._guardBeat(this.hud.levelCleared(3, 'NEW EARTH'));
     await this.g.playFinale();
   };
 
