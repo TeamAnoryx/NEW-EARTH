@@ -122,6 +122,17 @@ export class Story {
     this.hud.toast(ch === this.max ? 'CONTROL: MAX' : `CONTROL: ${name.toUpperCase()}`, 1.8);
   }
 
+  /** LOOK AROUND toggle: outside orbit view ↔ first person. */
+  toggleLookAround(v = !this.cam.lookAround) {
+    this.cam.lookAround = v;
+    this.player.firstPerson = !v;
+    document.body.classList.toggle('fp', !v);
+    document.getElementById('lookbtn')?.classList.toggle('on', v);
+    const lbl = document.querySelector('#lookbtn span'); if (lbl) lbl.textContent = v ? 'EYES VIEW' : 'LOOK AROUND';
+    if (v) this.player.camPitch = Math.max(this.player.camPitch, 0.15);
+    this.audio.uiSound(v ? 'on' : 'off');
+  }
+
   restoreControl() { if (this.lead !== this.max) this.switchControl('Max'); }
 
   /** Picker for the SWITCH button (Levels 2–3): everyone except who you are now. */
@@ -857,7 +868,12 @@ export class Story {
       const chest = this.lead.j.chest.getWorldPosition(new THREE.Vector3());
       const fwd = V(Math.sin(this.lead.yaw), 0, Math.cos(this.lead.yaw));
       this.suitLamp.position.copy(chest).addScaledVector(fwd, 0.25).add(V(0, 0.15, 0));
-      this.suitLamp.target.position.copy(this.suitLamp.position).addScaledVector(fwd, 4).add(V(0, this.area === 'D' ? -0.4 : -1.2, 0));
+      if (this.player.firstPerson && !this.cam.cinematic) {
+        // torch follows your eyes in first person
+        const c = this.cam.camera; const dir = new THREE.Vector3(); c.getWorldDirection(dir);
+        this.suitLamp.position.copy(c.position).addScaledVector(dir, 0.15).add(V(0.12, -0.18, 0));
+        this.suitLamp.target.position.copy(c.position).addScaledVector(dir, 5);
+      } else this.suitLamp.target.position.copy(this.suitLamp.position).addScaledVector(fwd, 4).add(V(0, this.area === 'D' ? -0.4 : -1.2, 0));
     }
 
     // safety net: control disabled outside a cutscene for >8 s (a hung script) → give it back

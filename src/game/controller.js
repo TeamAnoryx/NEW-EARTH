@@ -54,6 +54,7 @@ export class PlayerController {
     this.noise = 0;          // instantaneous noise emitted (0..1)
     this.camYaw = Math.PI; this.camPitch = 0.15;
     this.forceCrouch = false;
+    this.firstPerson = true;
     this.maxSpeedScale = 1;
     char.onStep = () => this._step();
   }
@@ -110,8 +111,11 @@ export class PlayerController {
     c.position.y = AREAS[this.area].floorY;
     const actual = Math.hypot(r.x - from.x, r.z - from.z) / Math.max(dt, 1e-4);
     c.speed = actual;
-    // face movement direction
-    if (actual > 0.2) {
+    // first person: the body turns with your view; look-around: face movement direction
+    if (this.firstPerson) {
+      let d = this.camYaw - c.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+      c.yaw += d * (1 - Math.exp(-14 * dt));
+    } else if (actual > 0.2) {
       const want = Math.atan2(this.vel.x, this.vel.z);
       let d = want - c.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
       c.yaw += d * (1 - Math.exp(-(this.mode === 'crawl' ? 6 : 12) * dt));
@@ -139,6 +143,12 @@ export class ThirdPersonCamera {
 
   shake(a) { this.shakeAmt = Math.max(this.shakeAmt, a); }
 
+  /** Hide your own body in first person (no arms or face clipping into the view); shown again for cutscenes and LOOK AROUND. */
+  _setBodyVisible(ch, v) {
+    if (this._hiddenHead && (this._hiddenHead !== ch || v)) { this._hiddenHead.rig.visible = true; this._hiddenHead = null; }
+    if (!v) { ch.rig.visible = false; this._hiddenHead = ch; }
+  }
+
   /** Scripted shot. Returns a promise resolved after `dur`. */
   shot(pos, look, dur = 0, ease = 'inOut') {
     const c = this.cinematic;
@@ -157,6 +167,7 @@ export class ThirdPersonCamera {
   update(dt, ctrl) {
     const cam = this.camera;
     if (this.cinematic) {
+      this._setBodyVisible(null, true); this._eye = null;
       const c = this.cinematic;
       if (c.track) {
         const { pos, look } = c.track();
@@ -172,8 +183,30 @@ export class ThirdPersonCamera {
       this.look.copy(c.lookCur);
       cam.lookAt(c.lookCur);
       this.pos.copy(cam.position);
-    } else if (ctrl) {
+    } else if (ctrl && !this.lookAround) {
+      // ---- first person: the camera IS the controlled character's eyes
       const ch = ctrl.char;
+      this._setBodyVisible(ch, false);
+      const head = ch.j.head.getWorldPosition(new THREE.Vector3());
+      const yaw = ctrl.camYaw, pitch = ctrl.camPitch;
+      const fwd = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+      // eyes sit a little above and in front of the head pivot; follows stand / crouch / crawl naturally
+      const eye = head.add(new THREE.Vector3(Math.sin(yaw) * 0.1, ctrl.mode === 'crawl' ? 0.1 : 0.13, Math.cos(yaw) * 0.1));
+      const A = AREAS[ctrl.area];
+      if (A) eye.y = Math.min(A.ceilY - 0.1, Math.max(A.floorY + 0.22, eye.y));
+      // smooth vertical bob (keeps walking natural, not jittery); horizontal follows tightly
+      if (!this._eye) this._eye = eye.clone();
+      this._eye.x = eye.x; this._eye.z = eye.z;
+      this._eye.y += (eye.y - this._eye.y) * (1 - Math.exp(-14 * dt));
+      cam.position.copy(this._eye);
+      this.look.copy(this._eye).add(fwd);
+      cam.lookAt(this.look);
+      this.pos.copy(cam.position);
+    } else if (ctrl) {
+      // ---- LOOK AROUND: outside view orbiting the character
+      const ch = ctrl.char;
+      this._setBodyVisible(ch, true);
+      this._eye = null;
       const crawl = ctrl.mode === 'crawl', crouch = ctrl.mode === 'crouch';
       const pivotH = crawl ? 0.55 : crouch ? 1.15 : 1.62;
       const targetDist = crawl ? 1.55 : crouch ? 2.1 : 2.55;

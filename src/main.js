@@ -44,6 +44,9 @@ class Game {
     document.body.classList.toggle('touch', this.isTouch);
     this.governor = new FrameGovernor(this.renderer);
     this.tablet.onCloseRequest = () => this.closeTablet();
+    // LOOK lives above the touch layer (the joystick zone would otherwise swallow taps)
+    const look = document.getElementById('lookbtn'); document.body.appendChild(look);
+    look.addEventListener('click', (e) => { e.stopPropagation(); this.story?.toggleLookAround(); });
     if (this.isTouch) {
       this.touch = new TouchControls(this.input, {
         onCrouch: (v) => { if (this.story) this.story.player.forceCrouch = v; },
@@ -188,12 +191,7 @@ class Game {
   onTopbar(id, btn) {
     this.audio.uiSound('press');
     if (id === 'skip') this.story?.skipCinematic();
-    else if (id === 'prev') {
-      const lvl = this.story?.level ?? 0;
-      if (lvl <= 0) { this.hud.toast('ALREADY ON LEVEL 0', 1.8); return; }
-      if (!this._confirm(btn, 'PREV LVL')) return;
-      this.hud.fade(1, 0.3).then(() => { this.story.inventory = this.story.inventory || []; this.story.start(LEVELS[lvl - 1].beat); });
-    }
+    else if (id === 'prev') this.openLevelPicker();
     else if (id === 'switch') { if (this.story?.switchAllowed && this.story.player.enabled) this.story.openSwitcher(); }
     else if (id === 'tasks') this.hud.toggleTasks();
     else if (id === 'light') { const on = this.story?.toggleLight(); btn.classList.toggle('on', !!on); this.audio.uiSound(on ? 'on' : 'off'); }
@@ -206,16 +204,22 @@ class Game {
     }
   }
 
-  /** Two-tap confirmation on a labelled button: first tap arms it ("SURE?"), second tap within 2.2 s confirms. */
-  _confirm(btn, label) {
-    const span = btn.querySelector('span');
-    if (!btn.classList.contains('confirm')) {
-      btn.classList.add('confirm'); span.textContent = 'SURE?';
-      clearTimeout(btn._confirmT); btn._confirmT = setTimeout(() => { btn.classList.remove('confirm'); span.textContent = label; }, 2200);
-      return false;
-    }
-    clearTimeout(btn._confirmT); btn.classList.remove('confirm'); span.textContent = label;
-    return true;
+  /** Jump to any level already unlocked (cleared levels ✓, the current one, the next unlocked). */
+  async openLevelPicker() {
+    if (!this.story || this.mode !== 'play') return;
+    const cleared = loadCleared(), unlocked = loadProgress(), cur = this.story.level ?? 0;
+    const opts = LEVELS.filter((L) => L.n <= Math.max(unlocked, cur)).map((L) => ({
+      name: `LEVEL ${L.n}`, face: String(L.n), color: L.n <= cleared ? '#3dff8a' : L.n === cur ? '#5ff3ff' : '#ffb547',
+      role: `${L.name}${L.n <= cleared ? ' · ✓ CLEARED' : ''}${L.n === cur ? ' · YOU ARE HERE' : ''}`,
+    }));
+    const wasEnabled = this.story.player.enabled; this.story.player.enabled = false;
+    const pick = await this.hud.pickPlayer(opts, 'JUMP TO LEVEL');
+    this.story.player.enabled = wasEnabled;
+    if (!pick) return;
+    const n = +pick.split(' ')[1];
+    await this.hud.fade(1, 0.3);
+    this.story.inventory = this.story.inventory || [];
+    this.story.start(LEVELS[n].beat);
   }
 
   /**
@@ -286,6 +290,7 @@ class Game {
   }
 
   async startGame(level = 0, beat = null) {
+    this.story.toggleLookAround?.(false);
     this.audio.init();
     this.audio.stopMenuMusic(1.2);
     $('title').classList.add('hidden');
@@ -409,11 +414,14 @@ class Game {
       if (this.mode === 'play' && !this.tablet.open) {
         const m = I.consumeMouse();
         const p = this.story.player;
-        p.camYaw -= m.x; p.camPitch = Math.max(-0.12, Math.min(0.9, p.camPitch + m.y)); // never look up from below the floor
+        p.camYaw -= m.x;
+        // first person: look up/down like a person; look-around orbit: never from below the floor
+        p.camPitch = p.firstPerson ? Math.max(-1.1, Math.min(1.25, p.camPitch + m.y)) : Math.max(-0.12, Math.min(0.9, p.camPitch + m.y));
         if (I.wasPressed('Space', 'Enter')) this.hud.advance();
         if (I.wasPressed('Tab') && this.tabletEnabled && this.story.player.enabled) this.openTablet(null);
         if (I.wasPressed('KeyF')) { const on = this.story.toggleLight(); document.querySelector('[data-tb="light"]')?.classList.toggle('on', !!on); }
         if (I.wasPressed('KeyJ')) this.hud.toggleTasks();
+        if (I.wasPressed('KeyV')) this.story.toggleLookAround();
         const ff = this.story.ff ? 60 : 1;
         if (ff > 1) this.hud.advance();
         this.story.update(dt * ff);

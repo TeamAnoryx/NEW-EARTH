@@ -13,7 +13,7 @@ export class HUD {
     this._advance = null;
   }
 
-  show(v = true) { this.el.classList.toggle('hidden', !v); }
+  show(v = true) { this.el.classList.toggle('hidden', !v); document.getElementById('lookbtn')?.classList.toggle('hidden', !v); }
 
   objective(text) {
     const o = $('objective');
@@ -125,11 +125,12 @@ export class HUD {
   }
 
   /** Character picker. options: [{ name, color, role }]; resolves with the chosen name or null. */
-  pickPlayer(options) {
+  pickPlayer(options, title = 'TAKE CONTROL OF') {
     const box = $('switcher'), cards = $('sw-cards');
+    $('sw-title').textContent = title;
     document.body.classList.add('focus-ui');
     cards.innerHTML = options.map((o, i) => `<button class="sw-card" type="button" data-name="${o.name}" style="--c:${o.color};--i:${i}">
-      <span class="sw-face">${o.name[0]}</span><b>${o.name.toUpperCase()}</b><small>${o.role}</small></button>`).join('');
+      <span class="sw-face">${o.face ?? o.name[0]}</span><b>${o.name.toUpperCase()}</b><small>${o.role}</small></button>`).join('');
     box.classList.remove('hidden');
     this.audio.uiSound('open');
     return new Promise((res) => {

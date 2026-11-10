@@ -434,3 +434,20 @@ body.dying #hud > *:not(#subtitle), body.dying #touch { opacity: 0 !important; p
 .btn-restart.confirm { color: #fff; border-color: var(--red); background: rgba(255,59,59,.25); }
 .btn-restart.hidden { display: none; }
 body.cinematic #topbar .tb-prev { display: none; }
+
+/* ---------- LOOK AROUND (bottom-left) ---------- */
+#lookbtn { position: absolute; left: calc(env(safe-area-inset-left) + 18px); bottom: calc(env(safe-area-inset-bottom) + 18px); z-index: 13; pointer-events: auto; display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 999px; cursor: pointer; color: var(--ink); background: rgba(6,16,26,.55); border: 1px solid rgba(95,243,255,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font: 600 9px var(--mono); letter-spacing: .2em; transition: transform .15s, background .2s, opacity .4s; -webkit-tap-highlight-color: transparent; }
+#lookbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+#lookbtn.on { background: rgba(95,243,255,.28); border-color: var(--cyan); color: #fff; }
+#lookbtn:active { transform: scale(.94); }
+body.cinematic #lookbtn, body.focus-ui #lookbtn, body.dying #lookbtn { opacity: 0; pointer-events: none; }
+body.idle-ui #lookbtn { opacity: .25; }
+body.touch #inventory { top: calc(env(safe-area-inset-top) + 70px); bottom: auto; }
+/* first person: small aim dot (also on touch) */
+body.fp #crosshair { display: block; width: 6px; height: 6px; margin: -3px; background: rgba(232,244,255,.75); box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 0 8px rgba(95,243,255,.6); }
+body.cinematic #crosshair { opacity: 0; }
+#lookbtn { position: fixed; z-index: 14; } #lookbtn.hidden { display: none; }
+body.touch #lookbtn { bottom: calc(env(safe-area-inset-bottom) + 16px); }
+body.focus-ui #subtitle { opacity: 0; }
