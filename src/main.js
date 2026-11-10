@@ -121,6 +121,10 @@ class Game {
     });
     document.addEventListener('pointerout', (e) => { if (e.target.closest?.('button') === this._hoverBtn) this._hoverBtn = null; });
     document.addEventListener('fullscreenchange', () => document.body.classList.toggle('is-fs', !!document.fullscreenElement));
+    // left full screen mid-game (Esc, system gesture)? the next tap in the game puts it back
+    document.addEventListener('pointerdown', () => {
+      if (this.mode === 'play' && this.wantFullscreen && !document.fullscreenElement && !document.webkitFullscreenElement) this._goFullscreen();
+    }, { capture: true });
     const mb = document.querySelector('[data-action="music"]');
     mb.classList.toggle('on', this.settings.music !== false); mb.setAttribute('aria-pressed', String(this.settings.music !== false));
     document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => this.onAction(b.dataset.action)));
@@ -183,6 +187,7 @@ class Game {
   }
 
   resume() {
+    if (this.wantFullscreen) this._goFullscreen();
     $('pause').classList.add('hidden');
     if (this.mode === 'pause') this.mode = 'play';
     this.input.requestLock();
@@ -290,6 +295,7 @@ class Game {
   }
 
   async startGame(level = 0, beat = null) {
+    this._goFullscreen(); // first, while the tap's user gesture is still fresh
     this.story.toggleLookAround?.(false);
     this.audio.init();
     this.audio.stopMenuMusic(1.2);
@@ -300,7 +306,6 @@ class Game {
     this.renderer.renderPass.camera = this.renderer.camera;
     this.hud.show(true);
     this.touch?.show(true);
-    this._goFullscreen();
     this.mode = 'play';
     this.tabletEnabled = false;
     this.input.requestLock();
@@ -309,16 +314,30 @@ class Game {
     this.story.start(beat || (LEVELS[level] || LEVELS[0]).beat);
   }
 
-  async _goFullscreen() {
-    if (!this.isTouch) return;
-    try {
-      const el = document.documentElement;
-      if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
-      await screen.orientation?.lock?.('landscape');
-    } catch (e) { console.info('Full screen / orientation lock unavailable (iOS Safari shows the rotate prompt instead):', e?.message || e); }
+  /**
+   * Play in full screen on every device. Must be called synchronously inside a tap/click
+   * handler (browsers only allow it with a fresh user gesture), so it runs before any await.
+   */
+  _goFullscreen() {
+    this.wantFullscreen = true;
+    const el = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    const req = el.requestFullscreen?.bind(el) || el.webkitRequestFullscreen?.bind(el);
+    if (!req) { this._iosFullscreenHint(); return; } // iPhone Safari: no element full screen
+    Promise.resolve(req({ navigationUI: 'hide' }))
+      .then(() => this.isTouch && screen.orientation?.lock?.('landscape'))
+      .catch((e) => console.info('Full screen refused:', e?.message || e));
+  }
+
+  /** iPhone Safari can't full-screen a page; launching from the home screen can. Hint once. */
+  _iosFullscreenHint() {
+    if (navigator.standalone || this._iosHinted) return;
+    this._iosHinted = true;
+    setTimeout(() => this.hud.toast('FOR FULL SCREEN: SHARE ▸ ADD TO HOME SCREEN', 5), 1500);
   }
 
   toTitle(first = false, fadeSec = null) {
+    this.wantFullscreen = false; // the console lives in the normal browser window
     this.mode = 'title';
     this.touch?.show(false);
     this.inTitle = true;
