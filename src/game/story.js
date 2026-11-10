@@ -1,3 +1,4 @@
+import { clueFor } from './clues.js';
 import * as THREE from 'three';
 import { createMax, createSean, createAnna, createZombie } from '../characters/humanoid.js';
 import { PlayerController, ThirdPersonCamera, Follower, nearestWalkable } from './controller.js';
@@ -150,6 +151,16 @@ export class Story {
   }
 
   /** Level checklist (also mirrored in the TASKS panel). */
+  /** What the CLUE button shows right now (follows the live objective, so it advances with the level). */
+  currentClue() {
+    return clueFor({
+      objective: this.hud.currentObjective,
+      tasks: this.taskList && this.levelName?.startsWith(`LEVEL ${this.level ?? 0}`) ? this.taskList : null,
+      cinematic: document.body.classList.contains('cinematic') || !this.player.enabled,
+      level: this.level ?? 0,
+    });
+  }
+
   setTasks(level, items) { this.levelName = level; this.taskList = items.map((t) => ({ ...t, done: !!t.done })); this.hud.tasks(level, this.taskList); }
   completeTask(id) {
     const t = this.taskList?.find((x) => x.id === id); if (!t || t.done) return;

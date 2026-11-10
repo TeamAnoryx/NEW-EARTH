@@ -39,6 +39,20 @@ export class Audio {
     this._noise = this._noiseBuffer(3);
   }
 
+  /** Freeze every sound (music, ambience, terror, heartbeat) — used when the game is paused or hidden. */
+  suspend() {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    this.ctx.suspend().catch((e) => console.warn('Audio suspend failed:', e?.message || e));
+  }
+
+  /** Continue from exactly where `suspend()` froze it. */
+  resumeAll() {
+    if (!this.ctx || this.ctx.state === 'running' || this.ctx.state === 'closed') return;
+    this.ctx.resume().catch((e) => console.warn('Audio resume failed:', e?.message || e));
+  }
+
+  get running() { return !!this.ctx && this.ctx.state === 'running'; }
+
   setVolume(v) { this.volume = v; if (this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05); }
 
   _noiseBuffer(sec, brown = false) {
@@ -246,6 +260,7 @@ export class Audio {
     if (this._hb) return; // the running loop picks up the new rate on its next beat
     const loop = () => {
       if (!this._hbRate) { this._hb = null; return; }
+      if (!this.running) { this._hb = setTimeout(loop, 250); return; } // paused: don't queue beats
       this._thump(55, 0.3); setTimeout(() => this._hbRate && this._thump(48, 0.18), 180);
       this._hb = setTimeout(loop, 1000 / this._hbRate);
     };

@@ -16,6 +16,7 @@ export class HUD {
   show(v = true) { this.el.classList.toggle('hidden', !v); document.getElementById('lookbtn')?.classList.toggle('hidden', !v); }
 
   objective(text) {
+    this.currentObjective = text || null;
     const o = $('objective');
     if (!text) { o.style.opacity = 0; return; }
     o.style.opacity = 1;
@@ -190,6 +191,21 @@ export class HUD {
     if (!el) { el = document.createElement('div'); el.id = 'inventory'; this.el.appendChild(el); }
     el.innerHTML = list.map((n, i) => `<span class="inv${i === list.length - 1 ? ' new' : ''}">${n}</span>`).join('');
   }
+
+  /** Show a clue card (auto-hides; tap ✕ or CLUE again to close). */
+  clue(c) {
+    const el = $('clue');
+    if (!c) { el.classList.add('hidden'); clearTimeout(this._clueT); document.querySelector('[data-tb="clue"]')?.classList.remove('on'); return; }
+    $('clue-title').textContent = c.title;
+    $('clue-text').textContent = c.text;
+    $('clue-step').textContent = c.step || '';
+    el.classList.remove('hidden'); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    document.querySelector('[data-tb="clue"]')?.classList.add('on');
+    clearTimeout(this._clueT);
+    this._clueT = setTimeout(() => this.clue(null), 12000);
+  }
+
+  get clueOpen() { return !$('clue').classList.contains('hidden'); }
 
   toggleTasks(v) { const el = $('tasks'); el.classList.toggle('hidden', v === undefined ? !el.classList.contains('hidden') : !v); document.querySelector('[data-tb="tasks"]')?.classList.toggle('on', !el.classList.contains('hidden')); }
 

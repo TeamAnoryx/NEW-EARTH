@@ -58,7 +58,21 @@ class Game {
     }
     this.input.onEscape = () => this.onEscape();
     // pause when the tab is hidden (rAF stops; avoid a huge delta and missed cues)
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && this.mode === 'play') this.pause(); });
+    // and silence everything: music, ambience, terror layer, heartbeat, intro soundtrack
+    const onHide = () => {
+      if (this.mode === 'play') this.pause();
+      this.audio.suspend();
+      this.intro?.setHidden(true);
+    };
+    const onShow = () => {
+      this.intro?.setHidden(false);
+      // a paused run stays silent until the player presses RESUME
+      if (this.mode !== 'pause') this.audio.resumeAll();
+    };
+    document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? onHide() : onShow()));
+    window.addEventListener('pagehide', onHide);
+    // switching to another app/window while the browser stays visible (desktop alt-tab)
+    window.addEventListener('blur', () => { if (this.mode === 'play') this.pause(); });
     this._bindUI();
   }
 
@@ -82,7 +96,7 @@ class Game {
 
   /** Called when the intro hands over: the main console with its looping score. */
   showConsole() {
-    if (this.mode === 'title') return;
+    if (this.mode !== 'boot') return; // only the first hand-over; never yank a started run back to the menu
     this.toTitle(true, 0);
   }
 
@@ -107,6 +121,7 @@ class Game {
   _bindUI() {
     // top-right control bar
     document.querySelectorAll('[data-tb]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.onTopbar(b.dataset.tb, b); }));
+    document.querySelector('.clue-x')?.addEventListener('click', (e) => { e.stopPropagation(); this.audio.uiSound('close'); this.hud.clue(null); });
     document.querySelector('.tasks-x')?.addEventListener('click', () => { this.audio.uiSound('close'); this.hud.toggleTasks(false); });
     // idle UI: controls fade after 4 s without input, any touch/key brings them back
     const wake = () => { document.body.classList.remove('idle-ui'); clearTimeout(this._idleT); this._idleT = setTimeout(() => { if (this.mode === 'play') document.body.classList.add('idle-ui'); }, 4000); };
@@ -184,10 +199,12 @@ class Game {
     this.mode = 'pause';
     $('pause').classList.remove('hidden');
     this.input.exitLock();
+    this.audio.suspend();
   }
 
   resume() {
     if (this.wantFullscreen) this._goFullscreen();
+    this.audio.resumeAll();
     $('pause').classList.add('hidden');
     if (this.mode === 'pause') this.mode = 'play';
     this.input.requestLock();
@@ -199,6 +216,7 @@ class Game {
     else if (id === 'prev') this.openLevelPicker();
     else if (id === 'switch') { if (this.story?.switchAllowed && this.story.player.enabled) this.story.openSwitcher(); }
     else if (id === 'tasks') this.hud.toggleTasks();
+    else if (id === 'clue') { if (this.hud.clueOpen) this.hud.clue(null); else if (this.story && this.mode === 'play') { this.hud.toggleTasks(false); this.hud.clue(this.story.currentClue()); } }
     else if (id === 'light') { const on = this.story?.toggleLight(); btn.classList.toggle('on', !!on); this.audio.uiSound(on ? 'on' : 'off'); }
     else if (id === 'pause') { if (this.mode === 'pause') this.resume(); else if (this.mode === 'play') this.pause(); }
     else if (id === 'home') {
@@ -241,7 +259,7 @@ class Game {
     this.story.token++;
     this.story.ff = false;
     if (this.tablet.open) this.tablet.toggle(false);
-    this.hud.toggleTasks(false); this.hud.prompt(null); this.hud.qte(0, false); this.hud.noise(0, false); this.hud.timer(0, false);
+    this.hud.toggleTasks(false); this.hud.clue(null); this.hud.prompt(null); this.hud.qte(0, false); this.hud.noise(0, false); this.hud.timer(0, false);
     this.audio.setHeartbeat(0);
     $('pause').classList.add('hidden'); $('death').classList.add('hidden');
     this.hud.fade(1, 0.3).then(() => this.toTitle(false, 0.6));
@@ -465,6 +483,7 @@ const game = new Game();
 window.__game = game; // handy for debugging from the console
 const intro = new Intro({ audio: game.audio, isTouch: game.isTouch });
 window.__intro = intro; // debugging handle
+game.intro = intro;
 game.onBootProgress = (p) => intro.setLoad(p);
 const booting = game.boot().catch((e) => {
   console.error(e);
@@ -475,5 +494,5 @@ const booting = game.boot().catch((e) => {
 intro.run({ waitForBoot: () => booting, beforeReveal: () => game.showConsole() })
   .catch((e) => { console.error('Intro failed:', e); document.getElementById('intro')?.remove(); })
   .then(() => booting)
-  .then(() => game.showConsole())
+  .then(() => { game.intro = null; game.showConsole(); })
   .catch(() => { /* boot failure already reported */ });

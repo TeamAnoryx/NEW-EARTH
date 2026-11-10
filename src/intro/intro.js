@@ -209,6 +209,17 @@ export class Intro {
     box.classList.add('hidden');
   }
 
+  /**
+   * Tab hidden / app minimised: silence the intro (YouTube players are outside WebAudio, so
+   * they are muted directly; the self-hosted track goes through the suspended AudioContext).
+   */
+  setHidden(hidden) {
+    for (const p of [this.music, this.video, this.videoB]) {
+      if (!p) continue;
+      try { if (hidden) p.mute?.(); else if (p === this.music) p.unMute?.(); } catch (e) { console.info('Intro mute toggle:', e?.message || e); }
+    }
+  }
+
   _rampMusic(to, ms) {
     if (this._localGain) this._localGain.gain.setTargetAtTime(Math.max(0.0001, to / 85), this.audio.now, ms / 3000);
     const m = this.music; if (!m) return;
