@@ -24,6 +24,7 @@ export function loadYouTubeAPI(timeoutMs = 7000, retries = 1) {
     document.querySelectorAll('script[src="https://www.youtube.com/iframe_api"]').forEach((n) => n.remove());
     return attempt();
   });
+  // forget a failed load so a later call can try again; the caller (intro.js ytReady) logs the error
   apiPromise.catch(() => { apiPromise = null; });
   return apiPromise;
 }
