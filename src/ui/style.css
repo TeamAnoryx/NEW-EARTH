@@ -426,3 +426,11 @@ body.focus-ui #touch, body.focus-ui #topbar, body.focus-ui #objective, body.focu
 @media (max-height: 500px) { .lv-chip { min-width: 70px; padding: 6px 8px; } }
 
 body.dying #hud > *:not(#subtitle), body.dying #touch { opacity: 0 !important; pointer-events: none !important; transition: opacity .2s; }
+
+.menu-row2 { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.btn-restart { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; cursor: pointer; color: var(--dim); background: rgba(10,24,38,.5); border: 1px solid rgba(255,255,255,.18); font: 600 10px var(--mono); letter-spacing: .22em; transition: color .15s, border-color .15s; }
+.btn-restart svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.btn-restart:hover { color: var(--ink); border-color: var(--red); }
+.btn-restart.confirm { color: #fff; border-color: var(--red); background: rgba(255,59,59,.25); }
+.btn-restart.hidden { display: none; }
+body.cinematic #topbar .tb-prev { display: none; }

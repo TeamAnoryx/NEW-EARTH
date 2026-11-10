@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createMax, createSean, createAnna, createZombie } from '../characters/humanoid.js';
 import { PlayerController, ThirdPersonCamera, Follower, nearestWalkable } from './controller.js';
-import { saveProgress } from './progress.js';
+import { saveProgress, saveResume, BEAT_LEVEL } from './progress.js';
 import { getMaterials } from '../world/materials.js';
 import { installLevels } from './levels.js';
 
@@ -206,6 +206,8 @@ export class Story {
     this.switchAllowed = ['l2intro', 'l2ctrl', 'l3'].includes(beat);
     document.body.classList.toggle('can-switch', this.switchAllowed);
     if (['door', 'search', 'storage'].includes(beat)) this.checkpoint = beat;
+    this.level = BEAT_LEVEL[beat] ?? this.level ?? 0;
+    saveResume(beat); // no-op unless this run is past the saved checkpoint
     return this['beat_' + beat]();
   }
 

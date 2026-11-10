@@ -33,7 +33,10 @@
           <span class="btn-play-icon"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></span>
           <span class="btn-play-text"><b>PLAY</b><small>Prologue · Outbreak</small></span>
         </button>
-        <button data-action="continue" class="btn-continue hidden" type="button">CONTINUE · LEVEL <b id="cont-lvl">2</b> ›</button>
+        <div class="menu-row2">
+          <button data-action="continue" class="btn-continue hidden" type="button">CONTINUE · LEVEL <b id="cont-lvl">2</b> ›</button>
+          <button data-action="restart-all" class="btn-restart hidden" type="button"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4"/></svg><span>RESTART GAME</span></button>
+        </div>
         <div class="lv-row" id="lv-row" aria-label="Levels"></div>
         <div class="menu-row">
           <button data-action="settings" class="btn-icon" type="button" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg><span>Settings</span></button>
@@ -130,6 +133,7 @@
     <div id="toast"></div>
     <nav id="topbar" aria-label="Game controls">
       <button class="tb-btn tb-skip" data-tb="skip" type="button"><svg viewBox="0 0 24 24"><path d="M5 5l8 7-8 7zM13 5l8 7-8 7z"/></svg><span>SKIP</span></button>
+      <button class="tb-btn tb-prev" data-tb="prev" type="button"><svg viewBox="0 0 24 24"><path d="M11 6l-6 6 6 6M19 6l-6 6 6 6"/></svg><span>PREV LVL</span></button>
       <button class="tb-btn tb-switch" data-tb="switch" type="button"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg><span>SWITCH</span></button>
       <button class="tb-btn" data-tb="tasks" type="button"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>TASKS</span></button>
       <button class="tb-btn" data-tb="light" type="button"><svg viewBox="0 0 24 24"><path d="M9 2h6l-1 6h-4zM10 8h4v4l1 10H9l1-10z"/><path d="M4 4l2 2M20 4l-2 2"/></svg><span>LIGHT</span></button>

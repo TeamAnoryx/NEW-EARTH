@@ -12,7 +12,7 @@ import { TouchControls, isTouch } from './ui/touch.js';
 import { Intro } from './intro/intro.js';
 import { CREDITS, WORDMARK_SVG } from './intro/brand.js';
 import { detectTier, FrameGovernor } from './engine/perf.js';
-import { loadProgress, loadCleared, LEVELS } from './game/progress.js';
+import { loadProgress, loadCleared, loadResume, LEVELS, BEAT_LEVEL } from './game/progress.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -146,7 +146,8 @@ class Game {
     this.audio.init();
     this.audio.uiSound(a === 'start' ? 'play' : ['controls', 'settings', 'credits'].includes(a) ? 'open' : 'press');
     if (a === 'start') this.startGame(0);
-    else if (a === 'continue') this.startGame(loadProgress());
+    else if (a === 'continue') this.startGame(loadProgress(), loadResume());
+    else if (a === 'restart-all') this.restartAll();
     else if (a === 'controls') $('panel-controls').classList.remove('hidden');
     else if (a === 'settings') $('panel-settings').classList.remove('hidden');
     else if (a === 'credits') $('panel-credits').classList.remove('hidden');
@@ -187,6 +188,12 @@ class Game {
   onTopbar(id, btn) {
     this.audio.uiSound('press');
     if (id === 'skip') this.story?.skipCinematic();
+    else if (id === 'prev') {
+      const lvl = this.story?.level ?? 0;
+      if (lvl <= 0) { this.hud.toast('ALREADY ON LEVEL 0', 1.8); return; }
+      if (!this._confirm(btn, 'PREV LVL')) return;
+      this.hud.fade(1, 0.3).then(() => { this.story.inventory = this.story.inventory || []; this.story.start(LEVELS[lvl - 1].beat); });
+    }
     else if (id === 'switch') { if (this.story?.switchAllowed && this.story.player.enabled) this.story.openSwitcher(); }
     else if (id === 'tasks') this.hud.toggleTasks();
     else if (id === 'light') { const on = this.story?.toggleLight(); btn.classList.toggle('on', !!on); this.audio.uiSound(on ? 'on' : 'off'); }
@@ -197,6 +204,27 @@ class Game {
       btn.classList.remove('confirm'); btn.querySelector('span').textContent = 'MENU';
       this.goHome();
     }
+  }
+
+  /** Two-tap confirmation on a labelled button: first tap arms it ("SURE?"), second tap within 2.2 s confirms. */
+  _confirm(btn, label) {
+    const span = btn.querySelector('span');
+    if (!btn.classList.contains('confirm')) {
+      btn.classList.add('confirm'); span.textContent = 'SURE?';
+      clearTimeout(btn._confirmT); btn._confirmT = setTimeout(() => { btn.classList.remove('confirm'); span.textContent = label; }, 2200);
+      return false;
+    }
+    clearTimeout(btn._confirmT); btn.classList.remove('confirm'); span.textContent = label;
+    return true;
+  }
+
+  /**
+   * Replay from Level 0. Saved progress is kept: cleared levels stay cleared, and the
+   * CONTINUE point only moves once this run gets past it.
+   */
+  restartAll() {
+    this.story.inventory = [];
+    this.startGame(0);
   }
 
   /** Leave the run and return to the console (checkpoint is kept for "restart"). */
@@ -257,7 +285,7 @@ class Game {
     } catch (e) { console.info('Full screen toggle not supported here:', e?.message || e); this.hud.toast?.('FULL SCREEN NOT SUPPORTED ON THIS BROWSER', 2.5); }
   }
 
-  async startGame(level = 1) {
+  async startGame(level = 0, beat = null) {
     this.audio.init();
     this.audio.stopMenuMusic(1.2);
     $('title').classList.add('hidden');
@@ -273,7 +301,7 @@ class Game {
     this.input.requestLock();
     this.story.checkpoint = 'intro';
     this.story.inventory = [];
-    this.story.start((LEVELS[level] || LEVELS[0]).beat);
+    this.story.start(beat || (LEVELS[level] || LEVELS[0]).beat);
   }
 
   async _goFullscreen() {
@@ -298,7 +326,11 @@ class Game {
     if (this.settings.music !== false) this.audio.startMenuMusic();
     const lvl = loadProgress(), cleared = loadCleared();
     $('cont-lvl').textContent = String(lvl);
-    document.querySelector('.btn-continue').classList.toggle('hidden', lvl < 1);
+    const resume = loadResume();
+    $('cont-lvl').textContent = String(BEAT_LEVEL[resume] ?? lvl);
+    const started = lvl > 0 || resume !== LEVELS[0].beat;
+    document.querySelector('.btn-continue').classList.toggle('hidden', !started);
+    document.querySelector('.btn-restart').classList.toggle('hidden', !started);
     $('lv-row').innerHTML = LEVELS.map((L) => {
       const st = L.n <= cleared ? 'cleared' : L.n === lvl ? 'next' : L.n > lvl ? 'locked' : '';
       const sub = st === 'cleared' ? '✓ CLEARED' : st === 'next' ? '▶ CONTINUE' : st === 'locked' ? 'LOCKED' : 'PLAY';
