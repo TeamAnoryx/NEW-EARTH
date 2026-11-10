@@ -224,3 +224,6 @@ body.touch #chapter-card { font-size: 15px; letter-spacing: .4em; }
   .btn-icon { width: 64px; padding: 9px 4px 7px; }
   .title-foot { margin-top: 12px; }
 }
+
+.title-foot b { display: inline-flex; vertical-align: middle; color: var(--cyan); }
+.title-foot b .ax-word { height: 11px; width: auto; fill: currentColor; } .title-foot b .ax-l { fill: currentColor; }

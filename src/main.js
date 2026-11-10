@@ -10,7 +10,7 @@ import { createEarth, createStars, createSun, createStationExterior } from './wo
 import { Story } from './game/story.js';
 import { TouchControls, isTouch } from './ui/touch.js';
 import { Intro } from './intro/intro.js';
-import { CREDITS } from './intro/brand.js';
+import { CREDITS, WORDMARK_SVG } from './intro/brand.js';
 import { detectTier, FrameGovernor } from './engine/perf.js';
 
 const $ = (id) => document.getElementById(id);
@@ -100,6 +100,7 @@ class Game {
 
   _bindUI() {
     $('cred-idea').textContent = CREDITS.ideaBy;
+    const foot = document.querySelector('.title-foot b'); if (foot) foot.innerHTML = WORDMARK_SVG;
     // UI sound design: hover (mouse only), press, panel open/close
     document.addEventListener('pointerover', (e) => {
       if (e.pointerType !== 'mouse') return;

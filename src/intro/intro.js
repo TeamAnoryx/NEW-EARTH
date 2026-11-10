@@ -1,5 +1,5 @@
 import './intro.css';
-import { loadYouTubeAPI, createPlayer, playSegments, waitUntilPlaying } from './youtube.js';
+import { loadYouTubeAPI, createPlayer, playSegmentsAB, waitUntilPlaying } from './youtube.js';
 import { IntroScene } from './introScene.js';
 import { CREDITS, LOGO_MARK, wordmark, logoBlock } from './brand.js';
 import { FootageOverlay } from './overlay.js';
@@ -33,7 +33,7 @@ export class Intro {
         <div class="in-gate-load"><i></i></div>
       </div>
       <div class="in-stage hidden">
-        <div class="in-video"><div id="in-yt-video"></div></div>
+        <div class="in-video"><div class="in-yt in-yt-a"><div id="in-yt-video"></div></div><div class="in-yt in-yt-b"><div id="in-yt-video-b"></div></div></div>
         <div class="in-audio"><div id="in-yt-audio"></div></div>
         <canvas class="in-canvas"></canvas>
         <div class="in-vignette"></div>
@@ -56,7 +56,7 @@ export class Intro {
       <div class="in-white">
         <div class="in-pw">
           <div class="in-pw-by">POWERED BY</div>
-          ${logoBlock('in-logo-big')}
+          ${logoBlock('in-logo-big', true)}
         </div>
       </div>`;
     document.body.appendChild(this.root);
@@ -154,12 +154,13 @@ export class Intro {
   setLoad(p) { const i = $('.in-gate-load i', this.root); if (i) i.style.width = `${Math.round(p * 100)}%`; }
 
   async _makePlayers(YT) {
-    const [video, music] = await Promise.all([
+    const [video, videoB, music] = await Promise.all([
       createPlayer(YT, $('#in-yt-video', this.root), VIDEO_ID, { muted: true, start: SEGMENTS[0][0] }),
+      createPlayer(YT, $('#in-yt-video-b', this.root), VIDEO_ID, { muted: true, start: SEGMENTS[1][0] }).catch(() => null),
       createPlayer(YT, $('#in-yt-audio', this.root), MUSIC_ID, { muted: false, start: MUSIC_START }).catch(() => null),
     ]);
-    this.video = video; this.music = music;
-    return { video, music };
+    this.video = video; this.videoB = videoB; this.music = music;
+    return { video, videoB, music };
   }
 
   _waitForTap() {
@@ -228,7 +229,7 @@ export class Intro {
     const players = await Promise.race([this.ytReady, wait(4000).then(() => null)]);
     const vEl = $('.in-video', this.root);
     if (!players?.video) return this._fallbackFootage(scene);
-    const { video, music } = players;
+    const { video, videoB, music } = players;
     // only show the footage once it is really playing — never YouTube's own error card
     try { video.seekTo(SEGMENTS[0][0], true); video.playVideo(); } catch { /* handled below */ }
     if (!(await waitUntilPlaying(video, 6000))) { try { video.stopVideo(); music?.stopVideo(); } catch { /* ignore */ } return this._fallbackFootage(scene); }
@@ -240,8 +241,10 @@ export class Intro {
     this.overlay?.show();
     let slid = false;
     const lastIdx = SEGMENTS.length - 1;
-    await playSegments(video, SEGMENTS, {
-      onCut: () => this._flashCut('cut'),
+    const els = [$('.in-yt-a', this.root), $('.in-yt-b', this.root)];
+    // with only one player available, B falls back to A (cuts then seek in place behind a quick dip)
+    await playSegmentsAB([video, videoB || video], els, SEGMENTS, {
+      xfade: videoB ? 0.5 : 0.15,
       onStall: (s) => $('.in-buffer', this.root)?.classList.toggle('hidden', !s || this.skipped),
       onTime: (t, i, remain) => {
         if (this.skipped) return;
@@ -250,8 +253,8 @@ export class Intro {
       },
     });
     if (!slid) { this.overlay?.hide(); scene.slideIn(2.2); this.audio.whoosh(2.2, true, 0.45); }
-    try { video.pauseVideo(); } catch { /* ignore */ }
-    vEl.classList.remove('on'); // CSS fade
+    vEl.classList.remove('on'); // CSS fade first, pause afterwards so no pause icon is ever visible
+    setTimeout(() => { try { video.pauseVideo(); videoB?.pauseVideo(); } catch (e) { console.info('Pause after intro:', e?.message || e); } }, 1500);
     scene.fadeSpace(1.4);
   }
 
@@ -356,7 +359,7 @@ export class Intro {
     await wait(80);
     const w = $('.in-white', this.root);
     w.classList.add('out');
-    try { this.video?.destroy(); this.music?.destroy(); } catch { /* ignore */ }
+    try { this.video?.destroy(); this.videoB?.destroy(); this.music?.destroy(); } catch (e) { console.info('YouTube player cleanup:', e?.message || e); }
     try { this.localAudio?.pause(); this._localVideo?.pause(); this._localVideo?.remove(); } catch (e) { console.info('Intro media cleanup:', e?.message || e); }
     clearInterval(this._volIv);
     this.overlay?.destroy();

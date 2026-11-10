@@ -92,3 +92,52 @@ export function waitUntilPlaying(player, timeoutMs = 6000) {
     }, 120);
   });
 }
+
+/**
+ * Seamless montage with two players (A/B): while one plays, the other pre-buffers the next
+ * segment hidden (opacity 0), then they cross-fade. The viewer never sees a player that is
+ * seeking or paused, so YouTube's pause/spinner icons never appear between cuts.
+ *   els: the two wrapper elements (class 'show' = visible)
+ */
+export function playSegmentsAB(players, els, segments, { onTime, onStall, xfade = 0.5, prepareAhead = 6 } = {}) {
+  return new Promise((resolve) => {
+    let cur = 0, i = 0, prepared = -1, cutting = false, lastT = -1, stallT = 0, done = false, guard = 0.6;
+    const single = players[0] === players[1]; // only one player could be created
+    const other = () => (single ? cur : 1 - cur);
+    const prepare = (p, seg) => {
+      // play muted & hidden until it is really rolling at the cut-in point, then park it paused there
+      try {
+        p.mute(); p.seekTo(seg[0], true); p.playVideo();
+        const iv = setInterval(() => {
+          if (p.getPlayerState?.() === 1) { clearInterval(iv); p.pauseVideo(); p.seekTo(seg[0], true); }
+        }, 120);
+        setTimeout(() => clearInterval(iv), 8000);
+      } catch (e) { console.warn('Could not pre-buffer next intro segment:', e?.message || e); }
+    };
+    els[0].classList.add('show'); els[1].classList.remove('show');
+    players[0].seekTo(segments[0][0], true); players[0].playVideo();
+    const iv = setInterval(() => {
+      if (done) return;
+      const p = players[cur];
+      const t = p.getCurrentTime?.() ?? 0;
+      if (guard > 0) { guard -= 0.1; lastT = t; return; }
+      const [, b] = segments[i];
+      if (Math.abs(t - lastT) < 0.01 && !cutting) { stallT += 0.1; if (stallT > 1.2) onStall?.(true); } else { if (stallT > 1.2) onStall?.(false); stallT = 0; }
+      lastT = t;
+      onTime?.(t, i, b - t);
+      const hasNext = i + 1 < segments.length;
+      if (!single && hasNext && prepared !== i + 1 && b - t <= prepareAhead) { prepared = i + 1; prepare(players[other()], segments[i + 1]); }
+      if (!cutting && b - t <= (hasNext ? xfade : 0.08)) {
+        if (!hasNext) { done = true; clearInterval(iv); resolve(); return; }
+        cutting = true;
+        if (single) { try { p.seekTo(segments[i + 1][0], true); } catch (e) { console.warn('Intro cut failed:', e?.message || e); } i++; guard = 0.4; setTimeout(() => { cutting = false; }, 200); return; }
+        const n = players[other()], old = p, oldEl = els[cur], newEl = els[other()];
+        try { n.seekTo(segments[i + 1][0], true); n.playVideo(); } catch (e) { console.warn('Intro cut failed:', e?.message || e); }
+        newEl.classList.add('show'); oldEl.classList.remove('show');     // CSS cross-fade
+        setTimeout(() => { try { old.pauseVideo(); } catch (e) { console.info('Pause after cut:', e?.message || e); } }, xfade * 1000 + 150);
+        cur = other(); i++; guard = 0.4;
+        setTimeout(() => { cutting = false; }, xfade * 1000);
+      }
+    }, 100);
+  });
+}
