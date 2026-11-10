@@ -33,6 +33,7 @@
           <span class="btn-play-icon"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></span>
           <span class="btn-play-text"><b>PLAY</b><small>Prologue · Outbreak</small></span>
         </button>
+        <button data-action="continue" class="btn-continue hidden" type="button">CONTINUE · LEVEL <b id="cont-lvl">2</b> ›</button>
         <div class="menu-row">
           <button data-action="settings" class="btn-icon" type="button" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg><span>Settings</span></button>
           <button data-action="controls" class="btn-icon" type="button" aria-label="Controls"><svg viewBox="0 0 24 24"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6L2 14.5A3 3 0 0 0 7 17l1.6-1.6a2 2 0 0 1 1.4-.6h4a2 2 0 0 1 1.4.6L17 17a3 3 0 0 0 5-2.5l-.7-5.9A4 4 0 0 0 17.3 5Z"/></svg><span>Controls</span></button>
@@ -114,22 +115,49 @@
     <div id="subtitle" class="hidden"><div id="sub-name"></div><div id="sub-text"></div><div id="sub-next">▸</div></div>
     <div id="qte" class="hidden"><kbd>E</kbd><div id="qte-text">SEAL THE DOOR</div><div class="qte-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" /><circle id="qte-arc" cx="50" cy="50" r="44" /></svg></div></div>
     <div id="toast"></div>
+    <nav id="topbar" aria-label="Game controls">
+      <button class="tb-btn tb-skip" data-tb="skip" type="button"><svg viewBox="0 0 24 24"><path d="M5 5l8 7-8 7zM13 5l8 7-8 7z"/></svg><span>SKIP</span></button>
+      <button class="tb-btn" data-tb="tasks" type="button"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>TASKS</span></button>
+      <button class="tb-btn" data-tb="light" type="button"><svg viewBox="0 0 24 24"><path d="M9 2h6l-1 6h-4zM10 8h4v4l1 10H9l1-10z"/><path d="M4 4l2 2M20 4l-2 2"/></svg><span>LIGHT</span></button>
+      <button class="tb-btn" data-tb="pause" type="button"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span>PAUSE</span></button>
+      <button class="tb-btn" data-tb="home" type="button"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h5v-6h4v6h5V10"/></svg><span>MENU</span></button>
+    </nav>
+    <aside id="tasks" class="hidden"><div class="tasks-head"><span id="tasks-level">PROLOGUE</span><button class="tasks-x" type="button" aria-label="Close tasks"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><ul id="tasks-list"></ul></aside>
   </div>
 
   <!-- Station map tablet -->
   <div id="tablet" class="hidden">
     <div class="tablet-frame">
+      <div class="tablet-scanline"></div>
       <div class="tablet-head">
-        <span class="tablet-brand">HELIOS-7 · STATION NAV</span>
+        <span class="tablet-brand"><i class="tb-dot"></i>HELIOS-7 · STATION NAV <em>v4.2</em></span>
         <span id="tablet-clock">T+00:00</span>
         <span class="tablet-alert">⚠ BIOHAZARD LOCKDOWN — LAB DECK B</span>
+        <button class="tablet-x" type="button" aria-label="Close map"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="tablet-body">
         <div class="tablet-decks" id="tablet-decks"></div>
-        <svg id="tablet-map" viewBox="0 0 800 520"></svg>
-        <div class="tablet-info" id="tablet-info"></div>
+        <div class="tablet-center">
+          <svg id="tablet-map" viewBox="0 0 800 520"></svg>
+          <div class="tablet-radar" aria-hidden="true"><i></i></div>
+        </div>
+        <div class="tablet-side">
+          <div class="tablet-info" id="tablet-info"></div>
+          <div class="tablet-widgets">
+            <div class="tw"><span class="tw-k">CREW VITALS</span>
+              <div class="tw-crew"><b style="--c:#5ff3ff">MAX</b><i class="tw-ecg"></i><b style="--c:#ffa040">SEAN</b><i class="tw-ecg"></i><b style="--c:#ff7fe0">ANNA</b><i class="tw-ecg"></i></div></div>
+            <div class="tw"><span class="tw-k">DECK POWER</span><div class="tw-bars" id="tw-power"></div></div>
+            <div class="tw tw-row"><span class="tw-k">COMMS</span><span class="tw-bad">NO UPLINK</span></div>
+            <div class="tw tw-row"><span class="tw-k">INFECTED NEARBY</span><span class="tw-bad" id="tw-threat">11</span></div>
+          </div>
+        </div>
       </div>
-      <div class="tablet-foot">[TAB] / [ESC] CLOSE</div>
+      <div class="tablet-foot">
+        <button class="tf-btn" data-tablet="route" type="button"><svg viewBox="0 0 24 24"><path d="M4 19c4-1 3-7 8-7s4-6 8-7"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="5" r="2"/></svg>SHOW ROUTE</button>
+        <button class="tf-btn" data-tablet="scan" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 12l5-5"/></svg>SCAN DECK</button>
+        <span class="tf-hint">[TAB] / [ESC] CLOSE</span>
+        <button class="tf-btn tf-go" data-tablet="proceed" type="button">PROCEED TO LEVEL 1 <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
     </div>
   </div>
 
@@ -140,6 +168,7 @@
       <button class="menu-btn" data-action="controls">CONTROLS</button>
       <button class="menu-btn" data-action="settings">SETTINGS</button>
       <button class="menu-btn" data-action="restart">RESTART CHECKPOINT</button>
+      <button class="menu-btn" data-action="home">BACK TO MENU</button>
     </div>
   </div>
 

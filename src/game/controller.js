@@ -26,7 +26,21 @@ export function resolveMove(area, obstacles, from, to, radius = RADIUS, height =
   if (inside(x, z)) return { x, z };
   if (inside(x, from.z)) return { x, z: from.z };
   if (inside(from.x, z)) return { x: from.x, z };
+  // never trap anyone: if the starting point itself is outside the walkable space
+  // (teleport, cutscene, physics push), pull them back to the nearest walkable point
+  if (!inside(from.x, from.z)) return nearestWalkable(area, from.x, from.z);
   return { x: from.x, z: from.z };
+}
+
+/** Closest point inside the area's walkable rectangles. */
+export function nearestWalkable(area, x, z) {
+  let best = { x, z }, bd = Infinity;
+  for (const [x0, x1, z0, z1] of AREAS[area].walk) {
+    const px = Math.min(x1, Math.max(x0, x)), pz = Math.min(z1, Math.max(z0, z));
+    const d = (px - x) ** 2 + (pz - z) ** 2;
+    if (d < bd) { bd = d; best = { x: px, z: pz }; }
+  }
+  return best;
 }
 
 /** Player locomotion for Max: camera-relative WASD, sprint, crouch, crawl (in ducts). */
@@ -176,6 +190,8 @@ export class ThirdPersonCamera {
       // keep camera inside duct/ceiling bounds
       this.pos.lerp(want, 1 - Math.exp(-18 * dt));
       if (hit) this.pos.copy(want);
+      const A = AREAS[ctrl.area];
+      if (A) this.pos.y = Math.min(A.ceilY - 0.12, Math.max(A.floorY + 0.32, this.pos.y));
       cam.position.copy(this.pos);
       this.look.copy(pivot).addScaledVector(back, -4);
       cam.lookAt(this.look);
@@ -236,16 +252,35 @@ export class Follower {
           if (od < 0.55 && od > 1e-4) { to.x += (ox / od) * (0.55 - od) * 0.5; to.z += (oz / od) * (0.55 - od) * 0.5; }
         }
         const r = this.scripted ? to : resolveMove(area, obstacles, { x: c.position.x, z: c.position.z }, to, 0.26, 1.7);
+        const progressed = Math.hypot(r.x - c.position.x, r.z - c.position.z) > step * 0.25;
+        this._stuckT = progressed ? 0 : (this._stuckT || 0) + dt;
         moved = Math.hypot(r.x - c.position.x, r.z - c.position.z);
         c.position.x = r.x; c.position.z = r.z;
         const want = Math.atan2(dx, dz);
         let dy = want - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         c.yaw += dy * (1 - Math.exp(-8 * dt));
       } else if (this.scripted) {
+        this._stuckT = 0;
         const r = this.scripted.res; this.scripted = null; r();
       }
     }
     c.speed = moved / Math.max(dt, 1e-4);
+    // anti-stuck: blocked for >1.6 s (scripted or following) → hop to the target / a trail point
+    if (this._stuckT > 1.6 && target) {
+      this._stuckT = 0;
+      const dest = this.scripted ? this.scripted.target : trail[Math.max(0, trail.length - 6 - this.slot * 4)] || target;
+      const p = this.scripted ? dest : nearestWalkable(area, dest.x, dest.z);
+      c.position.x = p.x; c.position.z = p.z; c.snap?.();
+      if (this.scripted && Math.hypot(dest.x - c.position.x, dest.z - c.position.z) < 0.1) { const res = this.scripted.res; this.scripted = null; res(); }
+    }
+    // far behind the leader (lost in geometry) → catch up instantly behind them
+    if (this.active && !this.scripted && trail.length) {
+      const L = this.leader.char.position;
+      if (Math.hypot(L.x - c.position.x, L.z - c.position.z) > 7) {
+        const p = trail[Math.max(0, trail.length - 8 - this.slot * 4)];
+        const q = nearestWalkable(area, p.x, p.z); c.position.x = q.x; c.position.z = q.z; c.snap?.();
+      }
+    }
     if (!this.active && !this.scripted) return;
     const st = this.scripted?.state;
     if (st) c.setState(st);

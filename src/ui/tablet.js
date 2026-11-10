@@ -46,6 +46,24 @@ export class Tablet {
       this.decksEl.appendChild(b);
     });
     this.start = performance.now();
+    this.onProceed = null;
+    this.root.querySelector('.tablet-x').addEventListener('click', () => { this.audio.uiSound?.('close'); this.onCloseRequest?.(); });
+    this.root.querySelectorAll('[data-tablet]').forEach((b) => b.addEventListener('click', () => this._action(b.dataset.tablet)));
+    const pw = document.getElementById('tw-power');
+    pw.innerHTML = Array.from({ length: 16 }, (_, i) => `<i class="${i > 11 ? 'low' : ''}"></i>`).join('');
+  }
+
+  /** Show/hide the PROCEED button (only when the story allows moving on). */
+  setProceed(label) { const b = this.root.querySelector('.tf-go'); b.classList.toggle('hidden', !label); if (label) b.firstChild.textContent = label + ' '; }
+
+  _action(a) {
+    this.audio.uiSound?.(a === 'proceed' ? 'play' : 'press');
+    if (a === 'proceed') { this.onProceed?.(); return; }
+    if (a === 'route') { this.show('section'); this.svg.querySelectorAll('path').forEach((p) => { if (p.getAttribute('stroke-dasharray')) { p.classList.remove('route-pulse'); void p.getBBox(); p.classList.add('route-pulse'); } }); }
+    if (a === 'scan') {
+      const r = this.root.querySelector('.tablet-radar'); r.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)', boxShadow: '0 0 40px #5ff3ff' }, { transform: 'scale(1)' }], { duration: 700 });
+      document.getElementById('tw-threat').textContent = String(9 + Math.floor(Math.random() * 5));
+    }
   }
 
   toggle(v = !this.open) {
@@ -56,6 +74,7 @@ export class Tablet {
 
   _tick() {
     if (!this.open) return;
+    document.querySelectorAll('#tw-power i').forEach((b, i) => (b.style.transform = `scaleY(${(i > 11 ? 0.15 : 0.45) + Math.random() * 0.5})`));
     const s = Math.floor((performance.now() - this.start) / 1000) + 1694;
     document.getElementById('tablet-clock').textContent = `STATION 03:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
     setTimeout(() => this._tick(), 500);

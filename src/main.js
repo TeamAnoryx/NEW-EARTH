@@ -12,6 +12,7 @@ import { TouchControls, isTouch } from './ui/touch.js';
 import { Intro } from './intro/intro.js';
 import { CREDITS, WORDMARK_SVG } from './intro/brand.js';
 import { detectTier, FrameGovernor } from './engine/perf.js';
+import { loadProgress } from './game/progress.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -42,6 +43,7 @@ class Game {
     this.isTouch = isTouch();
     document.body.classList.toggle('touch', this.isTouch);
     this.governor = new FrameGovernor(this.renderer);
+    this.tablet.onCloseRequest = () => this.closeTablet();
     if (this.isTouch) {
       this.touch = new TouchControls(this.input, {
         onCrouch: (v) => { if (this.story) this.story.player.forceCrouch = v; },
@@ -99,6 +101,13 @@ class Game {
   }
 
   _bindUI() {
+    // top-right control bar
+    document.querySelectorAll('[data-tb]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.onTopbar(b.dataset.tb, b); }));
+    document.querySelector('.tasks-x')?.addEventListener('click', () => { this.audio.uiSound('close'); this.hud.toggleTasks(false); });
+    // idle UI: controls fade after 4 s without input, any touch/key brings them back
+    const wake = () => { document.body.classList.remove('idle-ui'); clearTimeout(this._idleT); this._idleT = setTimeout(() => { if (this.mode === 'play') document.body.classList.add('idle-ui'); }, 4000); };
+    ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, wake, { passive: true }));
+    wake();
     $('cred-idea').textContent = CREDITS.ideaBy;
     const foot = document.querySelector('.title-foot b'); if (foot) foot.innerHTML = WORDMARK_SVG;
     // UI sound design: hover (mouse only), press, panel open/close
@@ -135,7 +144,8 @@ class Game {
   onAction(a) {
     this.audio.init();
     this.audio.uiSound(a === 'start' ? 'play' : ['controls', 'settings', 'credits'].includes(a) ? 'open' : 'press');
-    if (a === 'start') this.startGame();
+    if (a === 'start') this.startGame(1);
+    else if (a === 'continue') this.startGame(loadProgress());
     else if (a === 'controls') $('panel-controls').classList.remove('hidden');
     else if (a === 'settings') $('panel-settings').classList.remove('hidden');
     else if (a === 'credits') $('panel-credits').classList.remove('hidden');
@@ -150,6 +160,7 @@ class Game {
     else if (a === 'resume') this.resume();
     else if (a === 'restart') { this.resume(); this.retry(); }
     else if (a === 'retry') this.retry();
+    else if (a === 'home') this.goHome();
   }
 
   onEscape() {
@@ -172,6 +183,71 @@ class Game {
     this.input.requestLock();
   }
 
+  onTopbar(id, btn) {
+    this.audio.uiSound('press');
+    if (id === 'skip') this.story?.skipCinematic();
+    else if (id === 'tasks') this.hud.toggleTasks();
+    else if (id === 'light') { const on = this.story?.toggleLight(); btn.classList.toggle('on', !!on); this.audio.uiSound(on ? 'on' : 'off'); }
+    else if (id === 'pause') { if (this.mode === 'pause') this.resume(); else if (this.mode === 'play') this.pause(); }
+    else if (id === 'home') {
+      // two-step so a stray tap can't throw away the run
+      if (!btn.classList.contains('confirm')) { btn.classList.add('confirm'); btn.querySelector('span').textContent = 'SURE?'; setTimeout(() => { btn.classList.remove('confirm'); btn.querySelector('span').textContent = 'MENU'; }, 2200); return; }
+      btn.classList.remove('confirm'); btn.querySelector('span').textContent = 'MENU';
+      this.goHome();
+    }
+  }
+
+  /** Leave the run and return to the console (checkpoint is kept for "restart"). */
+  goHome() {
+    this.story.token++;
+    this.story.ff = false;
+    if (this.tablet.open) this.tablet.toggle(false);
+    this.hud.toggleTasks(false); this.hud.prompt(null); this.hud.qte(0, false); this.hud.noise(0, false); this.hud.timer(0, false);
+    this.audio.setHeartbeat(0);
+    $('pause').classList.add('hidden'); $('death').classList.add('hidden');
+    this.hud.fade(1, 0.3).then(() => this.toTitle(false, 0.6));
+  }
+
+  /** Ending: the escape pod pulls away from HELIOS-7 over a dark Earth. */
+  async playFinale() {
+    const s = this.titleScene, cam = this.titleCam;
+    this.mode = 'finale';
+    this.hud.show(false); this.touch?.show(false); this.hud.cinematic(false);
+    this.renderer.renderPass.scene = s; this.renderer.renderPass.camera = cam;
+    cam.clearViewOffset();
+    const pod = new THREE.Group();
+    const shell = new THREE.Mesh(new THREE.CapsuleGeometry(1.1, 1.6, 10, 20), new THREE.MeshStandardMaterial({ color: 0xd9e2ea, metalness: 1, roughness: 0.25 }));
+    shell.rotation.z = Math.PI / 2; pod.add(shell);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.2, 16, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 2.4, 3.2), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+    flame.rotation.z = Math.PI / 2; flame.position.x = -2.6; pod.add(flame);
+    s.add(pod);
+    const { earth, stars, st } = this._title;
+    let t = 0;
+    this._finaleTick = (dt) => {
+      t += dt;
+      earth.userData.update(this.t, cam); stars.userData.update(this.t); st.userData.update(this.t);
+      const k = Math.min(1, t / 14);
+      pod.position.set(44 + k * 160, 2 + k * 30, 10 - k * 120);
+      pod.rotation.set(0, 0.6, 0.2 + Math.sin(t * 2) * 0.02);
+      flame.scale.setScalar(0.8 + Math.random() * 0.4);
+      const camPos = new THREE.Vector3(70 + k * 60, 18 + k * 20, 70 - k * 40);
+      cam.position.lerp(camPos, 1 - Math.exp(-dt * 2));
+      cam.lookAt(pod.position.clone().lerp(new THREE.Vector3(0, -10, 0), 0.35 * (1 - k)));
+    };
+    cam.position.set(70, 18, 70);
+    this.audio.startMusic('calm');
+    await this.hud.fade(0, 1.2);
+    await new Promise((r) => setTimeout(r, 3500));
+    await this.hud.chapter('NEW EARTH', 3);
+    await this.hud.chapter('THE GENESIS CORE IS SAFE.\nTHE SEARCH FOR A NEW EARTH BEGINS.', 3.5);
+    await this.hud.chapter('TO BE CONTINUED\n\nA GAME BY ANORYX', 3);
+    await this.hud.fade(1, 1.2);
+    s.remove(pod); shell.geometry.dispose(); flame.geometry.dispose();
+    this._finaleTick = null;
+    this.audio.stopMusic(1);
+    this.toTitle(false, 1.2);
+  }
+
   async toggleFullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -179,11 +255,11 @@ class Game {
     } catch (e) { console.info('Full screen toggle not supported here:', e?.message || e); this.hud.toast?.('FULL SCREEN NOT SUPPORTED ON THIS BROWSER', 2.5); }
   }
 
-  async startGame() {
+  async startGame(level = 1) {
     this.audio.init();
     this.audio.stopMenuMusic(1.2);
     $('title').classList.add('hidden');
-    await this.hud.fade(1, 1.2);
+    await this.hud.fade(1, 0.35);
     this.inTitle = false;
     this.renderer.renderPass.scene = this.renderer.scene;
     this.renderer.renderPass.camera = this.renderer.camera;
@@ -194,7 +270,8 @@ class Game {
     this.tabletEnabled = false;
     this.input.requestLock();
     this.story.checkpoint = 'intro';
-    this.story.start('intro');
+    this.story.inventory = [];
+    this.story.start(level >= 3 ? 'l3' : level === 2 ? 'l2intro' : 'intro');
   }
 
   async _goFullscreen() {
@@ -217,6 +294,8 @@ class Game {
     this.renderer.renderPass.camera = this.titleCam;
     this.renderer.fx.uDanger.value = 0; this.renderer.fx.uDesat.value = 0;
     if (this.settings.music !== false) this.audio.startMenuMusic();
+    const lvl = loadProgress(); $('cont-lvl').textContent = String(lvl);
+    document.querySelector('.btn-continue').classList.toggle('hidden', lvl < 2);
     $('title').classList.remove('hidden');
     $('death').classList.add('hidden'); $('pause').classList.add('hidden');
     this.hud.fade(0, fadeSec ?? (first ? 2.5 : 2));
@@ -269,6 +348,7 @@ class Game {
     const raw = this.timer.getDelta();
     const dt = Math.min(0.05, raw);
     if (this.mode === 'boot') return; // the intro owns the screen until the console appears
+    if (this.mode === 'finale') { this._finaleTick?.(dt); this.input.endFrame(); R.render(this.t); return; }
     if (this.mode === 'title' || this.mode === 'play' || this.mode === 'dead') this.governor.sample(raw);
     this.t += dt;
     const R = this.renderer;
@@ -286,10 +366,14 @@ class Game {
       if (this.mode === 'play' && !this.tablet.open) {
         const m = I.consumeMouse();
         const p = this.story.player;
-        p.camYaw -= m.x; p.camPitch = Math.max(-0.6, Math.min(0.9, p.camPitch + m.y));
+        p.camYaw -= m.x; p.camPitch = Math.max(-0.12, Math.min(0.9, p.camPitch + m.y)); // never look up from below the floor
         if (I.wasPressed('Space', 'Enter')) this.hud.advance();
         if (I.wasPressed('Tab') && this.tabletEnabled && this.story.player.enabled) this.openTablet(null);
-        this.story.update(dt);
+        if (I.wasPressed('KeyF')) { const on = this.story.toggleLight(); document.querySelector('[data-tb="light"]')?.classList.toggle('on', !!on); }
+        if (I.wasPressed('KeyJ')) this.hud.toggleTasks();
+        const ff = this.story.ff ? 6 : 1;
+        if (ff > 1) this.hud.advance();
+        this.story.update(dt * ff);
         this.touch?.setMapAvailable(this.tabletEnabled);
       } else if (this.tablet.open) {
         I.consumeMouse();
@@ -298,7 +382,7 @@ class Game {
         this.story.update(dt * 0.25);
       }
       this.station.update(this.t, dt, R.camera);
-      this.story.cam.update(dt, this.story.player);
+      this.story.cam.update(dt * (this.story.ff ? 6 : 1), this.story.player);
     } else if (this.mode === 'pause') {
       this.input.consumeMouse();
     }

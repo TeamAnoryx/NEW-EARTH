@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 
 const SPEAKERS = {
-  Max: '#5ff3ff', Sean: '#ffa040', Anna: '#ff7fe0', HELIOS: '#ff5a5a', '': '#cfd8e0',
+  Max: '#5ff3ff', Sean: '#ffa040', Anna: '#ff7fe0', HELIOS: '#ff5a5a', GROUND: '#9dff8a', '': '#cfd8e0',
 };
 
 /** DOM HUD: objectives, prompts, subtitles, meters, toasts, chapter cards. */
@@ -35,7 +35,18 @@ export class HUD {
   }
 
   /** Typewriter subtitle. Resolves when finished (auto after reading time, or Space/Enter). */
+  /**
+   * Typewriter subtitle. Lines are queued: a line requested while another is showing waits its
+   * turn (never cuts it off), and every returned promise always resolves — so story scripts
+   * awaiting a line can't hang. clearSub() flushes the queue.
+   */
   say(name, text, hold = null) {
+    const gen = this._subGen || 0;
+    this._subQ = (this._subQ || Promise.resolve()).then(() => (gen === (this._subGen || 0) ? this._showLine(name, text, hold) : null));
+    return this._subQ;
+  }
+
+  _showLine(name, text, hold) {
     return new Promise((res) => {
       const box = $('subtitle'), n = $('sub-name'), t = $('sub-text');
       box.classList.remove('hidden');
@@ -49,7 +60,8 @@ export class HUD {
         if (i >= text.length) clearInterval(this._typer);
       }, 22);
       const dur = hold ?? Math.max(1.8, 0.9 + text.length * 0.052);
-      const finish = () => { clearTimeout(this._subTimer); clearInterval(this._typer); this._advance = null; res(); };
+      const finish = () => { clearTimeout(this._subTimer); clearInterval(this._typer); this._advance = null; this._finish = null; res(); };
+      this._finish = finish;
       this._subTimer = setTimeout(finish, dur * 1000);
       this._advance = () => {
         if (t.textContent.length < text.length) { clearInterval(this._typer); t.textContent = text; return; }
@@ -59,7 +71,12 @@ export class HUD {
   }
 
   advance() { this._advance?.(); }
-  clearSub() { $('subtitle').classList.add('hidden'); clearInterval(this._typer); clearTimeout(this._subTimer); this._advance = null; }
+  clearSub() {
+    $('subtitle').classList.add('hidden'); clearInterval(this._typer); clearTimeout(this._subTimer);
+    this._subGen = (this._subGen || 0) + 1; // drop queued lines
+    const f = this._finish; this._finish = null; this._advance = null; f?.(); // release whoever awaits the current one
+    this._subQ = Promise.resolve();
+  }
 
   chapter(text, dur = 3.5) {
     const c = $('chapter-card');
@@ -94,6 +111,26 @@ export class HUD {
     $('qte-text').textContent = text;
     $('qte-arc').style.strokeDashoffset = `${276.5 * (1 - Math.max(0, Math.min(1, progress)))}`;
   }
+
+  /** Level checklist in the TASKS panel. items: [{ id, text, done }] ; the first open item is "now". */
+  tasks(level, items) {
+    this._tasks = { level, items };
+    $('tasks-level').textContent = level;
+    let nowSet = false;
+    $('tasks-list').innerHTML = items.map((t) => {
+      const cls = t.done ? 'done' : !nowSet ? ((nowSet = true), 'now') : '';
+      return `<li class="${cls}">${t.text}</li>`;
+    }).join('');
+  }
+
+  /** Collected items shown as chips (bottom-left). */
+  inventory(list) {
+    let el = document.getElementById('inventory');
+    if (!el) { el = document.createElement('div'); el.id = 'inventory'; this.el.appendChild(el); }
+    el.innerHTML = list.map((n, i) => `<span class="inv${i === list.length - 1 ? ' new' : ''}">${n}</span>`).join('');
+  }
+
+  toggleTasks(v) { const el = $('tasks'); el.classList.toggle('hidden', v === undefined ? !el.classList.contains('hidden') : !v); document.querySelector('[data-tb="tasks"]')?.classList.toggle('on', !el.classList.contains('hidden')); }
 
   cinematic(on) { document.body.classList.toggle('cinematic', on); }
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { getMaterials, tiled } from './materials.js';
 import { createEarth, createStars, createSun } from './space.js';
+import { buildDeck } from './deck.js';
 
 /**
  * HELIOS-7 interior. One continuous, physically consistent space:
@@ -12,9 +13,9 @@ import { createEarth, createStars, createSun } from './space.js';
  */
 
 export const AREAS = {
-  Q: { floorY: 0, walk: [[-4.72, 4.72, -3.72, 3.72]] },
-  D: { floorY: -1.4, walk: [[2.18, 2.82, -3.22, 0.85], [-3.32, 2.82, -3.32, -2.68], [-3.32, -2.68, -3.32, 2.3]] },
-  S: { floorY: -4.6, walk: [[-5.7, 5.7, -5.7, 3.7]] },
+  Q: { floorY: 0, ceilY: 3.0, walk: [[-4.72, 4.72, -3.72, 3.72]] },
+  D: { floorY: -1.4, ceilY: -0.56, walk: [[2.18, 2.82, -3.22, 0.85], [-3.32, 2.82, -3.32, -2.68], [-3.32, -2.68, -3.32, 2.3]] },
+  S: { floorY: -4.6, ceilY: -1.72, walk: [[-5.7, 5.7, -5.7, 3.7]] },
 };
 
 let M;
@@ -42,6 +43,7 @@ export class Station {
     this._buildDuct();
     this._buildStorage();
     this._buildHallway();
+    buildDeck(this);
     this._buildLights();
     this._buildParticles();
   }
@@ -564,13 +566,15 @@ export class Station {
     const y0 = -4.6, H = 2.9;
     this.box(8, 0.2, 10, wallMat(M.floor, 3, 4, 'fh'), 10.2, y0 - 0.1, 0, Hh, { cam: false });
     this.box(8, 0.2, 10, wallMat(M.ceiling, 3, 4, 'ch'), 10.2, y0 + H + 0.1, 0, Hh, { cam: false });
-    this.wall(0.2, H, 10, 14.2, y0 + H / 2, 0, M.wallDark, Hh, 'hd');
+    this.wall(0.2, H, 3.5, 14.2, y0 + H / 2, -3.25, M.wallDark, Hh, 'hd');
+    this.wall(0.2, H, 3.5, 14.2, y0 + H / 2, 3.25, M.wallDark, Hh, 'hd');
+    this.wall(0.2, H - 2.4, 3, 14.2, y0 + 2.4 + (H - 2.4) / 2, 0, M.wallDark, Hh, 'hd');
     this.wall(8, H, 0.2, 10.2, y0 + H / 2, -5, M.wallDark, Hh, 'hd');
     this.wall(8, H, 0.2, 10.2, y0 + H / 2, 5, M.wallDark, Hh, 'hd');
-    for (let z = -4; z <= 4; z += 2) this.box(0.3, H, 0.25, M.trim, 14.0, y0 + H / 2, z, Hh, { cam: false });
+    for (const z of [-4, -2, 2, 4]) this.box(0.3, H, 0.25, M.trim, 14.0, y0 + H / 2, z, Hh, { cam: false });
     this.decal(M.blood[0], 8.2, y0 + 0.004, 0.8, 1.6, -Math.PI / 2, 0.4, Hh);
     this.decal(M.blood[1], 10.5, y0 + 0.004, -1.6, 1.4, -Math.PI / 2, 2.2, Hh);
-    this._stencilWall(Hh, 'LOGISTICS SPINE  L-2', 14.08, y0 + 2.3, 0, -Math.PI / 2, 3);
+    this._stencilWall(Hh, 'LOGISTICS SPINE  L-2 ►', 14.08, y0 + 2.62, -3.2, -Math.PI / 2, 2.6);
   }
 
   // ---------------------------------------------------------------- lighting
@@ -615,7 +619,7 @@ export class Station {
   setArea(area) {
     this.area = area;
     const L = this.lights;
-    const q = area === 'Q', d = area === 'D', s = area === 'S';
+    const q = area === 'Q', d = area === 'D', s = area === 'S' || (area === 'C' && !this.blackout);
     L.sun.intensity = q ? 1.1 : 0;
     L.hemi.intensity = q ? 0.18 : d ? 0.04 : 0.08;
     L.qKey.intensity = q ? this._qKeyBase ?? 6 : 0;
@@ -626,6 +630,27 @@ export class Station {
     L.sKey.intensity = s || d ? 38 : 0;
     L.sHall.intensity = s || d ? 7 : 0;
     this.scene.environmentIntensity = q ? 0.1 : 0.06;
+    if (area === 'C') {
+      // deck lights follow the blackout / aux-power state; the control-room lamp reuses dFan
+      L.hemi.intensity = this.blackout ? 0.012 : 0.08;
+      L.dFan.position.set(33, -2.2, 0); L.dFan.distance = 12; L.dFan.color.set(this.alarmPower ? 0xff3020 : 0x6ad8ff);
+      L.dFan.intensity = this.ctrlPower ? 9 : 0;
+      this.scene.environmentIntensity = this.blackout ? 0.015 : 0.06;
+    }
+  }
+
+  /** Kill (or restore) deck power: lights, emissive strips and screens dim to almost nothing. */
+  setBlackout(on) {
+    this.blackout = on;
+    if (!this._emis) {
+      this._emis = [];
+      this.root.traverse((o) => {
+        const m = o.material; if (!m || Array.isArray(m) || !m.emissive || m.emissiveIntensity === undefined) return;
+        if (m.emissiveIntensity > 0.2 && !this._emis.some((e) => e.m === m)) this._emis.push({ m, v: m.emissiveIntensity });
+      });
+    }
+    this._emis.forEach(({ m, v }) => (m.emissiveIntensity = on ? v * 0.06 : v));
+    this.setArea(this.area);
   }
 
   _buildParticles() {

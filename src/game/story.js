@@ -1,9 +1,20 @@
 import * as THREE from 'three';
 import { createMax, createSean, createAnna, createZombie } from '../characters/humanoid.js';
-import { PlayerController, ThirdPersonCamera, Follower } from './controller.js';
+import { PlayerController, ThirdPersonCamera, Follower, nearestWalkable } from './controller.js';
+import { saveProgress } from './progress.js';
+import { installLevels } from './levels.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const HANG = new Promise(() => {});
+
+const L1_TASKS = [
+  { id: 'door', text: 'Secure the storage door — silently' },
+  { id: 'weapons', text: 'Find something to fight with' },
+  { id: 'food', text: 'Find food and water' },
+  { id: 'protection', text: 'Find protection' },
+  { id: 'medical', text: 'Find medical supplies' },
+  { id: 'plan', text: 'Regroup and plan the next move' },
+];
 
 /**
  * PROLOGUE — OUTBREAK
@@ -71,7 +82,25 @@ export class Story {
     cs.forEach((c) => (c.yaw = Math.atan2(cx - c.position.x, cz - c.position.z)));
   }
 
+  /** Fast-forward the current cutscene (6x time, subtitles auto-advance) until control returns. */
+  skipCinematic() { if (document.body.classList.contains('cinematic')) this.ff = true; }
+
+  toggleLight() { this.lightOn = !this.lightOn; this._applyLight(); return this.lightOn; }
+
+  _applyLight() {
+    const base = { Q: 6, D: 12, S: 8, C: 10 }[this.area] ?? 8;
+    this.suitLamp.intensity = this.lightOn ? base : 0;
+  }
+
+  /** Level checklist (also mirrored in the TASKS panel). */
+  setTasks(level, items) { this.levelName = level; this.taskList = items.map((t) => ({ ...t, done: !!t.done })); this.hud.tasks(level, this.taskList); }
+  completeTask(id) {
+    const t = this.taskList?.find((x) => x.id === id); if (!t || t.done) return;
+    t.done = true; this.hud.tasks(this.levelName, this.taskList); this.hud.toast(`✓ ${t.text.toUpperCase()}`, 2.2); this.audio.uiSound('on');
+  }
+
   cinematic(on) {
+    if (!on) this.ff = false;
     this.hud.cinematic(on);
     this.player.enabled = !on;
     if (!on) { this.cam.release(); this.hud.clearSub(); }
@@ -85,18 +114,22 @@ export class Story {
     const S = this.station;
     S.corridor.visible = a === 'Q';
     S.quarters.visible = a === 'Q' || a === 'D';
-    S.storage.visible = S.hallway.visible = a === 'D' || a === 'S';
+    S.storage.visible = S.hallway.visible = a === 'D' || a === 'S' || a === 'C';
+    S.deck.visible = a === 'C';
     S.duct.visible = a === 'D' || a === 'Q';
     S.sparks.visible = a === 'Q';
-    this.zombies.forEach((z) => (z.c.root.visible = (z.group === 'corridor' && a === 'Q') || (z.group === 'hall' && a !== 'Q')));
+    this.zombies.forEach((z) => (z.c.root.visible = z.group === 'deck' ? a === 'C' : (z.group === 'corridor' && a === 'Q') || (z.group === 'hall' && a !== 'Q' && a !== 'C')));
     this.corpse.root.visible = a === 'Q';
-    this.suitLamp.intensity = a === 'Q' ? 0 : a === 'D' ? 14 : 9;
+    this.lightOn = a !== 'Q' || !!this.darkness;
+    this._applyLight();
+    document.querySelector('[data-tb="light"]')?.classList.toggle('on', this.lightOn);
   }
 
   resetZombies(group) {
     const corridor = [[2.35, 6.45, 0.9, 'zFeed'], [-5.5, 7.4, 2.4, 'zIdle'], [-2.6, 5.7, -0.6, 'zIdle'], [5.4, 7.8, 3.6, 'zIdle'], [7.6, 5.6, -1.4, 'zIdle'], [-8.4, 6.0, 1.6, 'zIdle']];
     const hall = [[6.95, 0.85, Math.PI / 2 + 0.3, 'zIdle'], [8.1, -1.3, -0.4, 'zIdle'], [9.3, 1.6, 2.6, 'zIdle'], [10.8, -0.2, 1.4, 'zIdle'], [8.7, 3.0, -2.4, 'zIdle']];
     this.zombies.forEach((z, i) => {
+      if (z.group === 'deck') z.group = i < 6 ? 'corridor' : 'hall'; // back from Levels 2–3
       if (z.group !== group) return;
       const d = group === 'corridor' ? corridor[i] : hall[i - 6];
       const y = group === 'corridor' ? 0 : -4.6;
@@ -113,6 +146,10 @@ export class Story {
     this.hud.clearSub(); this.hud.prompt(null); this.hud.qte(0, false); this.hud.noise(0, false); this.hud.timer(0, false);
     this.audio.setHeartbeat(0);
     this.glassTimer = null; this.stealth = null; this.qte = null; this.doorHold = null;
+    this.deckAI = null; this.zones = []; this.doorTimer = null; this.bayHold = null;
+    document.getElementById('align')?.remove(); document.body.classList.remove('minigame');
+    if (!['l2intro', 'l2ctrl', 'l3'].includes(beat)) { this.darkness = false; if (this.station.blackout) this.station.setBlackout(false); }
+    [this.max, this.sean, this.anna].forEach((c) => (c.root.visible = true));
     this.g.tabletEnabled = beat !== 'intro' && beat !== 'door' && beat !== 'search' ? true : this.g.tabletEnabled;
     this.max.reachTarget = 0; this.sean.custom = this.anna.custom = this.max.custom = null;
     this.fSean.scripted = this.fAnna.scripted = null;
@@ -153,11 +190,10 @@ export class Story {
 
     this.cam.camera.position.set(-4.2, 1.6, 2.6);
     this.cam.shot(V(-4.2, 1.6, 2.6), V(-6, 1.3, -0.5), 0);
-    await this.wait(0.3);
-    this.hud.fade(0, 3);
-    this.hud.chapter('HELIOS-7 ORBITAL RESEARCH STATION\n408 KM ABOVE EARTH · 03:12 STATION TIME', 4.5);
-    await this.shot(V(-3.2, 1.5, 1.8), V(-6, 1.0, -1.2), 6, 'inOut');
-    await this.shot(V(1.6, 1.35, -0.6), V(0, 0.75, -2.6), 5, 'inOut');
+    this.hud.fade(0, 0.7);
+    this.hud.chapter('HELIOS-7 ORBITAL RESEARCH STATION\n408 KM ABOVE EARTH · 03:12 STATION TIME', 3);
+    await this.shot(V(-3.2, 1.5, 1.8), V(-6, 1.0, -1.2), 3.5, 'inOut');
+    await this.shot(V(1.6, 1.35, -0.6), V(0, 0.75, -2.6), 3, 'inOut');
     // muffled chaos
     this.audio.impact(V(0, 1, 6), 0.35); await this.wait(0.8);
     this.audio.groan(V(-3, 1, 7), 0.5); await this.wait(1.2);
@@ -377,18 +413,100 @@ export class Story {
     await this.say('Max', 'Wait — a nav-pad. Someone dropped it under the bench.');
     this.g.tabletEnabled = true;
     this.glassTimer && (this.glassTimer.paused = true);
-    this.hud.objective('Study the station map  [TAB]');
+    this.hud.objective('Study the station map — then PROCEED');
+    const tab = this.g.tablet;
+    tab.setProceed('PROCEED TO LEVEL 1');
+    tab.onProceed = () => {
+      tab.onProceed = null; tab.setProceed(null);
+      this.g._tabletClose = null; tab.toggle(false);
+      this.start('l1intro');
+    };
+    let briefed = false;
     this.g.openTablet(async () => {
+      // closed without proceeding: the glass keeps cracking, the map stays one tap away
       this.glassTimer && (this.glassTimer.paused = false);
       this.player.enabled = true;
       this.fSean.scripted = this.fAnna.scripted = null;
       this.fSean.active = this.fAnna.active = true;
+      this.hud.objective('Open the MAP and proceed to Level 1');
+      if (briefed) return; briefed = true;
       await this.say('Anna', "Storage C-7... it's directly below us.");
-      await this.say('Sean', 'And the vent trunk runs straight into it. That floor vent — there.');
-      await this.say('Max', "That's our way out. Get that grate open.");
-      this.hud.objective('Open the floor vent');
-      this.addInteract({ id: 'vent', pos: V(2.5, 0, 1.45), r: 1.1, text: 'Pry open the vent grate', onUse: () => this._openVent() });
+      await this.say('Sean', 'And the vent trunk runs straight into it. Open the map, Max — let\'s go.');
     });
+  }
+
+  /** Level 1 opener: Sean pries the vent and slides in, Anna follows, Max goes last. */
+  async beat_l1intro() {
+    const S = this.station;
+    this.glassTimer = null; this.hud.timer(0, false); this.g.renderer.fx.uDanger.value = 0;
+    this.cinematic(true);
+    this.hud.objective(null);
+    this.setArea('Q');
+    this._placeCrew('Q', [1.3, 2.1, Math.PI], [2.2, 2.5, Math.PI], [3.4, 2.2, Math.PI]);
+    S.ventGrate.position.copy(S.ventGrateHome); S.ventGrate.rotation.set(0, 0, 0);
+    this.fSean.active = this.fAnna.active = false;
+    this.audio.setAlarmLevel(0.2, 1);
+    this.cam.camera.position.set(4.3, 2.3, 3.3);
+    this.cam.shot(V(4.3, 2.3, 3.3), V(2.4, 0.3, 0.7), 0);
+    this.hud.fade(0, 0.5);
+    await this.walk(this.fSean, V(2.5, 0, 1.4), 2.0);
+    this.sean.yaw = Math.PI; this.sean.setState('kneel', 5);
+    await this.say('Sean', "I've got the grate.", 1.4);
+    this.audio.impact(S.ventGrate.position, 0.4);
+    await this.tween(0.8, (k) => { S.ventGrate.position.set(S.ventGrateHome.x + 1.0 * k, 0.01 + Math.sin(k * Math.PI) * 0.45, S.ventGrateHome.z + 0.6 * k); S.ventGrate.rotation.z = -k * 0.25; });
+    this.audio.impact(S.ventGrate.position, 0.6);
+    await this.say('Sean', "I'll go first. Stay on me.", 1.6);
+    await this._slideIntoVent(this.sean);
+    await this.walk(this.fAnna, V(2.5, 0, 1.4), 2.0);
+    this.anna.yaw = Math.PI;
+    await this.say('Anna', 'Right behind you.', 1.2);
+    this.cam.shot(V(3.6, 1.6, 2.6), V(2.5, -0.4, 0.4), 1.2);
+    await this._slideIntoVent(this.anna);
+    this.max.setState('walk'); await this.tween(0.8, (k) => this.max.root.position.lerpVectors(V(1.3, 0, 2.1), V(2.5, 0, 1.45), k));
+    this.max.yaw = Math.PI; this.max.setState('kneel', 5);
+    await this.wait(0.4);
+    this.audio.ductClank(this.max.position);
+    await this._guardBeat(this.hud.fade(1, 0.45));
+    this._fromDuct = true;
+    this.start('storage');
+  }
+
+  async _slideIntoVent(c) {
+    c.setState('crawl', 6); c.speed = 1;
+    const a = V(2.5, 0, 1.2), b = V(2.5, -1.4, 0.3), d = V(2.5, -1.4, -1.6);
+    this.audio.ductClank(a);
+    await this.tween(0.75, (k) => c.root.position.lerpVectors(a, b, k));
+    await this.tween(0.9, (k) => c.root.position.lerpVectors(b, d, k), (x) => x);
+    c.root.visible = false; c.speed = 0;
+  }
+
+  /** Storage arrival: Sean, then Anna, then Max drop out of the ceiling vent. */
+  async _ductExit() {
+    const S = this.station, g = S.storageGrates[1];
+    const home = g.position.clone(), rot = g.rotation.clone();
+    g.position.set(home.x + 0.55, home.y - 0.35, home.z); g.rotation.set(Math.PI / 2 - 1.1, 0, 0.3);
+    this.cam.camera.position.set(-0.4, -3.4, 3.5);
+    this.cam.shot(V(-0.4, -3.4, 3.5), V(-3.0, -3.1, 1.9), 0);
+    this.hud.fade(0, 0.5);
+    const drop = async (c, land, faceYaw) => {
+      c.root.visible = true; c.yaw = faceYaw; c.setState('crouch', 9); c.snap();
+      const top = V(-3.0, -2.15, 2.0), floor = V(-3.0, -4.6, 2.0);
+      c.root.position.copy(top);
+      this.audio.ductClank(top);
+      await this.tween(0.42, (k) => c.root.position.lerpVectors(top, floor, k), (x) => x * x);
+      this.audio.impact(floor, 0.35, true); this.cam.shake(0.012);
+      await this.wait(0.25);
+      c.setState('crouchWalk', 6); c.speed = 1.1;
+      await this.tween(0.7, (k) => c.root.position.lerpVectors(floor, land, k));
+      c.speed = 0; c.setState('crouch', 6);
+    };
+    [this.max, this.sean, this.anna].forEach((c) => (c.root.visible = false));
+    await this.wait(0.4);
+    await drop(this.sean, V(-2.3, -4.6, 2.6), Math.PI / 2);
+    await drop(this.anna, V(-3.6, -4.6, 2.9), Math.PI / 2);
+    this.cam.shot(V(-1.0, -3.6, 3.4), V(-3.0, -3.6, 1.8), 1.0);
+    await drop(this.max, V(-3.0, -4.6, 1.6), Math.PI / 2);
+    g.position.copy(home); g.rotation.copy(rot);
   }
 
   async _openVent() {
@@ -467,8 +585,11 @@ export class Story {
     await this.wait(0.2);
     this.hud.fade(0, 1.2);
     this.max.setState('crouch', 6); this.sean.setState('crouch', 6); this.anna.setState('crouch', 6);
-    await this.wait(0.8);
-    await this.say('Max', 'Wait.', 1.1);
+    if (this._fromDuct) { this._fromDuct = false; await this._ductExit(); }
+    this.setTasks('LEVEL 1 · SALVAGE', L1_TASKS);
+    this.sean.lookYaw = 0.4;
+    await this.say('Sean', '(whispering) Max... the door. It isn\'t secure.', 2.4);
+    this.sean.lookYaw = 0;
     // reveal: the door is ajar, they stand outside... silent
     await this.shot(V(3.8, -3.3, 2.3), V(7.6, -3.7, 0.6), 3.0);
     this.audio.setHeartbeat(1.0);
@@ -476,7 +597,8 @@ export class Story {
     await this.say('Anna', "They're just... standing there.", 2.2);
     await this.say('Sean', 'Like they\'re asleep. Or praying.', 2.2);
     await this.shot(V(-4.1, -3.1, 3.2), V(-2.6, -3.9, 1.6), 1.6);
-    await this.say('Max', "Nobody make a sound. I'll get the door.", 2.4);
+    await this.say('Max', "Nobody make a sound. I'll lock it — then we strip this room for everything we can use.", 3.2);
+    this.hud.chapter('LEVEL 1\nSALVAGE', 2.2);
     this.cinematic(false);
     this.player.camYaw = Math.PI / 2; this.player.camPitch = 0.18;
     this.hud.objective('Sneak to the door controls — hold C to crouch');
@@ -521,9 +643,64 @@ export class Story {
     z.mode = 'idle'; z.c.setState('zIdle', 2);
     this.audio.setHeartbeat(0.7);
     await this.say('Anna', '(whispering) ...It stopped.', 2.0);
-    await this.wait(1.0);
+    await this.wait(0.6);
     this.audio.setHeartbeat(0);
-    this.start('ending');
+    this._startSearch();
+  }
+
+  /** Level 1, part 2: the door is locked — gather weapons, food, protection, medicine, then plan. */
+  async _startSearch() {
+    const S = this.station;
+    this.completeTask('door');
+    this.cinematic(false);
+    this.player.enabled = true;
+    this.stealth = null; this.hud.noise(0, false);
+    this.g.renderer.fx.uDanger.value = 0;
+    this.fSean.active = this.fAnna.active = true;
+    this.hud.objective('Search the storage room for supplies');
+    this.audio.startMusic('calm');
+    const items = [
+      { id: 'weapons', pos: V(1.0, -4.6, 2.85), text: 'Search the workbench', loot: ['Plasma cutter', 'Crowbar'], line: ['Max', 'A plasma cutter. And a crowbar. That works.'] },
+      { id: 'food', pos: V(0.0, -4.6, -4.75), text: 'Search the supply racks', loot: ['Ration packs', 'Water ×6'], line: ['Max', 'Rations and water — a week, if we\'re careful.'] },
+      { id: 'protection', pos: V(-4.75, -4.6, -0.1), text: 'Open the EVA locker', loot: ['Armoured EVA vests', 'Helmets'], line: ['Max', 'EVA vests. They won\'t stop much — but they\'ll stop teeth.'] },
+      { id: 'medical', pos: V(4.3, -4.6, -5.0), text: 'Open the med cabinet', loot: ['Med-kit', 'Adrenaline stims'], line: ['Max', 'Med-kit, stims. Anna — catch.'] },
+    ];
+    let left = items.length;
+    items.forEach((it) => this.addInteract({ id: it.id, pos: it.pos, r: 1.15, text: it.text, onUse: async () => {
+      this.removeInteract(it.id);
+      this.player.enabled = false;
+      this.max.reachTarget = 1; this.audio.rustle();
+      await this.wait(0.7); this.max.reachTarget = 0;
+      it.loot.forEach((l) => this.addItem(l));
+      this.completeTask(it.id);
+      this.player.enabled = true;
+      await this.say(...it.line);
+      left--;
+      if (left === 2) this.say('Anna', 'Fuel cells in this crate too. We\'ll need light where we\'re going.');
+      if (left === 0) {
+        await this.say('Sean', "That's everything worth carrying. Max — we need a plan.");
+        this.hud.objective('Regroup with the crew at the crates');
+        this.addInteract({ id: 'plan', pos: V(-0.6, -4.6, -0.35), r: 1.3, text: 'Sit down and plan', onUse: () => { this.removeInteract('plan'); this.completeTask('plan'); this.start('ending'); } });
+      }
+    } }));
+    // the crew don't stand idle
+    (async () => {
+      await this.wait(1.5);
+      await this.say('Anna', "I'll check the shelves. Sean, take the lockers.", 2.4);
+    })();
+    // something tests the door while they search
+    (async () => {
+      await this.wait(14);
+      if (this.beat !== 'storage') return;
+      this.audio.impact(V(6.1, -3.6, 0), 0.7); this.cam.shake(0.02);
+      await this.say('Sean', '(whispering) ...It\'s holding. Keep going.', 2.2);
+    })();
+  }
+
+  addItem(name) {
+    this.inventory = this.inventory || [];
+    if (!this.inventory.includes(name)) this.inventory.push(name);
+    this.hud.inventory(this.inventory);
   }
 
   async beat_ending() {
@@ -570,15 +747,19 @@ export class Story {
     await this.say('Max', "Then we work with what's here. This is Storage C-7 — tools, med supplies, EVA gear. Everything this station runs on comes through this room.");
     await this.say('Sean', 'Weapons?');
     await this.say('Max', 'Whatever we can turn into one. Cutters. Flares. Anything heavy.');
-    await this.say('Anna', 'And the nav-pad still works. If the escape pods on Deck 1 are intact—');
-    await this.say('Max', "One step at a time. First we gather equipment. Then we find a way off HELIOS-7.");
+    await this.say('Anna', 'And the nav-pad still works. The control room is two corridors east. If we reach the comms array, we can call home.');
+    await this.say('Sean', 'Through a spine full of those things? They\'ll hear every step.');
+    await this.say('Anna', 'Then we take away their edge. I cut the deck power at the breaker — no hum, no light, no warmth. Total dark. They lose us. We don\'t lose them.');
+    await this.say('Max', 'Lights off, crouch, and we move as one. Control room. Then we tell Earth what\'s up here.');
     this.max.lookPitch = 0;
     await this.say('Max', "Let's get to work.", 2.2);
     await this._guardBeat(this.hud.fade(1, 2.5));
     this.cam.release();
     this.audio.stopMusic(4);
-    await this._guardBeat(this.hud.chapter('NEW EARTH\n\nEND OF PROLOGUE\n\nCHAPTER 1 — SALVAGE\nCOMING SOON', 6));
-    this.g.toTitle();
+    await this._guardBeat(this.hud.chapter('LEVEL 1 COMPLETE\n\nNEXT — LEVEL 2: BLACKOUT', 3.5));
+    this.cam.release();
+    saveProgress(2);
+    this.start('l2intro');
   }
 
   // ---------------------------------------------------------------- per-frame
@@ -611,6 +792,10 @@ export class Story {
       this.suitLamp.target.position.copy(this.suitLamp.position).addScaledVector(fwd, 4).add(V(0, this.area === 'D' ? -0.4 : -1.2, 0));
     }
 
+    // safety net: control disabled outside a cutscene for >8 s (a hung script) → give it back
+    const blocked = !this.player.enabled && !document.body.classList.contains('cinematic') && !this.qte && !this.g.tablet.open && this.g.mode === 'play';
+    this._blockedT = blocked ? (this._blockedT || 0) + dt : 0;
+    if (this._blockedT > 8) { this._blockedT = 0; this.player.enabled = true; this.max.reachTarget = 0; console.warn('Control restored by watchdog'); }
     this._updateZombies(dt);
     this._updateInteract(dt);
     this._updateQTE(dt);
@@ -629,6 +814,7 @@ export class Story {
   _updateZombies(dt) {
     for (const z of this.zombies) {
       if (!z.c.root.visible) continue;
+      if (z.group === 'deck') { this._deckZombie(z, dt); continue; }
       if (z.delay > 0) { z.delay -= dt; z.c.update(dt); continue; }
       if (z.mode === 'rush' && z.target) {
         const pos = z.c.root.position;
@@ -755,7 +941,7 @@ export class Story {
           this.zombies.forEach((z) => { if (z.group === 'hall') { z.mode = 'idle'; z.speed = 0; z.c.setState('zIdle', 1.5); } });
           await this.say('Sean', '(whispering) ...Too close. Way too close.');
           st.done = true;
-          this.start('ending');
+          this._startSearch();
         })();
       }
     }
@@ -777,3 +963,5 @@ export class Story {
     });
   }
 }
+
+installLevels(Story, { V, nearestWalkable, saveProgress });
