@@ -232,15 +232,31 @@ export class Audio {
   }
 
   // Heartbeat loop for stealth
+  /**
+   * Heartbeat at `rate` beats per second. Rates are quantised and a change only re-times the
+   * next beat — it never fires an extra thump — so a wobbling noise level can't machine-gun it
+   * (that retriggering was the audible "flicker").
+   */
   setHeartbeat(rate) {
     if (!this.ready) return;
-    if (rate <= 0) { clearInterval(this._hb); this._hb = null; this._hbRate = 0; return; }
-    if (this._hb && Math.abs(this._hbRate - rate) < 0.1) return;
-    clearInterval(this._hb);
-    this._hbRate = rate;
-    const beat = () => { this._thump(55, 0.35); setTimeout(() => this._thump(48, 0.22), 180); };
-    beat();
-    this._hb = setInterval(beat, 60000 / (rate * 60));
+    if (rate <= 0) { clearTimeout(this._hb); this._hb = null; this._hbRate = 0; return; }
+    const q = Math.round(rate * 4) / 4;
+    if (this._hb && q === this._hbRate) return;
+    this._hbRate = q;
+    if (this._hb) return; // the running loop picks up the new rate on its next beat
+    const loop = () => {
+      if (!this._hbRate) { this._hb = null; return; }
+      this._thump(55, 0.3); setTimeout(() => this._hbRate && this._thump(48, 0.18), 180);
+      this._hb = setTimeout(loop, 1000 / this._hbRate);
+    };
+    this._hb = setTimeout(loop, 120);
+  }
+
+  /** Allow a sound kind at most every `ms` milliseconds (prevents stacking clicks/crackle). */
+  _throttle(kind, ms) {
+    const now = performance.now(); this._last ||= {};
+    if (now - (this._last[kind] || 0) < ms) return false;
+    this._last[kind] = now; return true;
   }
 
   _thump(f, v) {
@@ -252,7 +268,7 @@ export class Audio {
 
   // ---------------------------------------------------------------- one-shots
   groan(pos, intensity = 1) {
-    if (!this.ready) return;
+    if (!this.ready || !this._throttle('groan', 450)) return;
     const c = this.ctx, t = this.now, dur = 1.2 + Math.random() * 1.4;
     const out = this._spatial(pos, 3, 0.5 * intensity);
     const o = c.createOscillator(); o.type = 'sawtooth';
@@ -298,7 +314,7 @@ export class Audio {
   }
 
   impact(pos, strength = 1, metallic = true) {
-    if (!this.ready) return;
+    if (!this.ready || !this._throttle('impact', strength > 0.7 ? 60 : 140)) return;
     const c = this.ctx, t = this.now;
     const out = this._spatial(pos, 4, strength);
     const o = c.createOscillator(); o.type = 'sine';
@@ -330,7 +346,7 @@ export class Audio {
   }
 
   footstep(pos, loud = 0.5, metal = true) {
-    if (!this.ready) return;
+    if (!this.ready || !this._throttle('step', 70)) return;
     const c = this.ctx, t = this.now;
     const out = this._spatial(pos, 2.5, loud * 0.5);
     const n = this._noiseSrc(); const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = metal ? 900 + Math.random() * 300 : 400; bp.Q.value = 1.2;
@@ -565,6 +581,7 @@ export class Audio {
 
   stopAll() {
     this.stopTerror();
+    this.setHeartbeat(0);
     Object.keys(this._loops).forEach((k) => {
       const l = this._loops[k];
       if (l.iv) clearInterval(l.iv);

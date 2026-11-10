@@ -62,7 +62,7 @@ kbd { font-family: var(--mono); }
 .death-inner p { color: #ffb3b3; letter-spacing: .15em; margin-bottom: 30px; }
 
 /* ---------- HUD ---------- */
-#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 13; } /* above #touch (12): top-bar buttons must win taps over the look zone */
 #objective { position: absolute; left: 32px; top: 28px; max-width: 380px; padding-left: 14px; border-left: 2px solid var(--cyan); transition: opacity .5s; }
 .obj-label { font-family: var(--mono); font-size: 10px; letter-spacing: .35em; color: var(--cyan); }
 #obj-text { margin-top: 4px; font-size: 15px; letter-spacing: .04em; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
