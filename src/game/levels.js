@@ -102,20 +102,20 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
       if (z.turned) { c.speed = 0; c.setState('zIdle', 3); c.yaw += Math.atan2(Math.sin(Math.atan2(dx, dz) - c.yaw), Math.cos(Math.atan2(dx, dz) - c.yaw)) * (1 - Math.exp(-2 * dt)); }
       else if (r.length === 1 || z.pause > 0) { z.pause -= dt; c.speed = 0; c.setState('zIdle', 3); if (z.pause <= 0 && r.length > 1) z.wp = (z.wp + 1) % r.length; }
       else if (td < 0.25) { z.pause = 1.5 + Math.random() * 2.5; }
-      else this._zMove(z, tx, tz, 0.65, 'zWalk', dt);
+      else this._moveZombie(z, tx, tz, 0.65, 'zWalk', dt);
     } else if (z.mode === 'hunt') {
       z.huntT += dt;
       const lost = d > 9 && heard < 0.15;
       z.lostT = lost ? z.lostT + dt : 0;
       if (z.lostT > 3.5) { z.mode = 'patrol'; z.susp = 0.4; z.turned = false; this.hud.toast('…IT LOST YOU', 1.6); return; }
-      this._zMove(z, max.x, max.z, z.huntSpeed ?? 2.9, 'zRun', dt);
+      this._moveZombie(z, max.x, max.z, z.huntSpeed ?? 2.9, 'zRun', dt);
       if (d < 0.8 && this.player.enabled !== null) this.g.die(this.darkness ? 'They found you in the dark.' : 'You were caught.');
       z.groanT -= dt; if (z.groanT <= 0) { z.groanT = 1.5 + Math.random() * 2; this.audio.groan(pos, 1); }
     }
     c.update(dt);
   };
 
-  P._zMove = function (z, tx, tz, speed, state, dt) {
+  P._moveZombie = function (z, tx, tz, speed, state, dt) {
     const c = z.c, pos = c.root.position;
     const dx = tx - pos.x, dz = tz - pos.z, d = Math.hypot(dx, dz);
     if (d < 0.05) { c.speed = 0; return; }
