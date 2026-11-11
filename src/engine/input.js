@@ -1,4 +1,6 @@
-/** Keyboard + pointer-lock mouse input. */
+/** Keyboard + pointer-lock mouse input (with click-and-drag look when the mouse isn't captured). */
+import { isTouch } from '../ui/touch.js';
+
 export class Input {
   constructor(canvas) {
     this.canvas = canvas;
@@ -12,23 +14,32 @@ export class Input {
     this.invertY = false;
     this.onEscape = null;
     this.analog = null;   // {x,y} from the touch thumbstick, -1..1
-    this.touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    this.touch = isTouch();
+    this.onLockLost = null; // pointer lock released by the browser (e.g. Esc) — not by us
+    this._dragging = false;
 
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Tab') e.preventDefault();
+      if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault(); // no page scroll / focus jumps
+      if (e.repeat && this.down.has(e.code)) return;
       if (e.code === 'Escape') { this.onEscape?.(); return; }
       if (!this.down.has(e.code)) this.pressed.add(e.code);
       this.down.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
-    window.addEventListener('blur', () => this.down.clear());
+    window.addEventListener('blur', () => { this.down.clear(); this._dragging = false; });
 
     canvas.addEventListener('click', () => this.requestLock());
     document.addEventListener('pointerlockchange', () => {
+      const was = this.locked;
       this.locked = document.pointerLockElement === canvas;
+      if (was && !this.locked && !this._intentionalExit) this.onLockLost?.();
+      this._intentionalExit = false;
     });
+    // fallback look: hold the left button and drag (pointer lock refused, embedded page, etc.)
+    canvas.addEventListener('mousedown', (e) => { if (e.button === 0) this._dragging = true; });
+    window.addEventListener('mouseup', () => { this._dragging = false; });
     document.addEventListener('mousemove', (e) => {
-      if (!this.locked) return;
+      if (!this.locked && !this._dragging) return;
       this.mouseDX += e.movementX || 0;
       this.mouseDY += e.movementY || 0;
     });
@@ -42,7 +53,7 @@ export class Input {
     } catch { /* pointer lock unavailable (e.g. iframe) */ }
   }
 
-  exitLock() { if (document.pointerLockElement) document.exitPointerLock(); }
+  exitLock() { if (document.pointerLockElement) { this._intentionalExit = true; document.exitPointerLock(); } }
 
   isDown(...codes) { return this.enabled && codes.some((c) => this.down.has(c)); }
   wasPressed(...codes) { return this.enabled && codes.some((c) => this.pressed.has(c)); }

@@ -64,12 +64,21 @@
     </table>
     <table class="desk-only">
       <tr><td>W A S D</td><td>Move</td></tr>
-      <tr><td>Mouse</td><td>Look (click the screen to capture the mouse)</td></tr>
+      <tr><td>← →</td><td>Turn (or use the mouse)</td></tr>
+      <tr><td>Mouse</td><td>Look — click the game to capture it, or hold left button and drag</td></tr>
       <tr><td>Shift</td><td>Sprint — loud</td></tr>
-      <tr><td>C / Ctrl</td><td>Crouch — silent</td></tr>
-      <tr><td>E</td><td>Interact</td></tr>
-      <tr><td>Space / Enter</td><td>Advance dialogue</td></tr>
-      <tr><td>Tab</td><td>Station map (once found)</td></tr>
+      <tr><td>C / Ctrl</td><td>Crouch — quieter</td></tr>
+      <tr><td>X</td><td>Crawl — silent</td></tr>
+      <tr><td>E</td><td>Interact (hold when asked)</td></tr>
+      <tr><td>F</td><td>Flashlight</td></tr>
+      <tr><td>Tab</td><td>Station map</td></tr>
+      <tr><td>J</td><td>Task list</td></tr>
+      <tr><td>Q</td><td>Clue</td></tr>
+      <tr><td>G</td><td>Assign tasks (Levels 3–4)</td></tr>
+      <tr><td>V</td><td>Look-around view</td></tr>
+      <tr><td>Space / Enter</td><td>Next dialogue line</td></tr>
+      <tr><td>K</td><td>Skip cutscene</td></tr>
+      <tr><td>H</td><td>Show the controls popup</td></tr>
       <tr><td>Esc</td><td>Pause</td></tr>
     </table>
     <p class="hint">The infected are blind. They hunt by sound.</p>
@@ -150,6 +159,7 @@
       <button class="tb-btn tb-clue" data-tb="clue" type="button"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg><span>CLUE</span></button>
       <button class="tb-btn" data-tb="tasks" type="button"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>TASKS</span></button>
       <button class="tb-btn" data-tb="light" type="button"><svg viewBox="0 0 24 24"><path d="M9 2h6l-1 6h-4zM10 8h4v4l1 10H9l1-10z"/><path d="M4 4l2 2M20 4l-2 2"/></svg><span>LIGHT</span></button>
+      <button class="tb-btn desk-only" data-tb="keys" type="button"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><span>KEYS</span></button>
       <button class="tb-btn" data-tb="pause" type="button"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span>PAUSE</span></button>
       <button class="tb-btn" data-tb="home" type="button"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h5v-6h4v6h5V10"/></svg><span>MENU</span></button>
     </nav>
@@ -193,6 +203,17 @@
     </div>
   </div>
 
+  <div id="keyhelp" class="hidden" role="dialog" aria-label="Keyboard and mouse controls">
+    <div class="kh-panel">
+      <div class="kh-head"><span class="kh-k">KEYBOARD &amp; MOUSE</span><h2>HOW TO PLAY</h2><p>The infected are blind — they hunt by sound. Move slowly, stay quiet.</p></div>
+      <div class="kh-cols">
+        <section><h3>MOVE</h3><div class="kh-row"><span class="kh-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Move</span></div><div class="kh-row"><span class="kh-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Walk forward / back</span></div><div class="kh-row"><span class="kh-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></div><div class="kh-row"><span class="kh-keys"><kbd>Mouse</kbd></span><span>Look around (click the game to capture the mouse · or hold left button and drag)</span></div><div class="kh-row"><span class="kh-keys"><kbd>Shift</kbd></span><span>Sprint — loud</span></div><div class="kh-row"><span class="kh-keys"><kbd>C</kbd></span><span>Crouch — quieter</span></div><div class="kh-row"><span class="kh-keys"><kbd>X</kbd></span><span>Crawl — silent</span></div></section>
+        <section><h3>ACT</h3><div class="kh-row"><span class="kh-keys"><kbd>E</kbd></span><span>Interact · hold E when the prompt says HOLD</span></div><div class="kh-row"><span class="kh-keys"><kbd>F</kbd></span><span>Flashlight on / off</span></div><div class="kh-row"><span class="kh-keys"><kbd>Tab</kbd></span><span>Station map</span></div><div class="kh-row"><span class="kh-keys"><kbd>J</kbd></span><span>Task list</span></div><div class="kh-row"><span class="kh-keys"><kbd>Q</kbd></span><span>Clue for the current task</span></div><div class="kh-row"><span class="kh-keys"><kbd>G</kbd></span><span>Assign tasks to the crew (Levels 3–4)</span></div><div class="kh-row"><span class="kh-keys"><kbd>V</kbd></span><span>Look-around view</span></div></section>
+        <section><h3>GAME</h3><div class="kh-row"><span class="kh-keys"><kbd>Space</kbd></span><span>Next dialogue line</span></div><div class="kh-row"><span class="kh-keys"><kbd>K</kbd></span><span>Skip cutscene</span></div><div class="kh-row"><span class="kh-keys"><kbd>H</kbd></span><span>Show these controls</span></div><div class="kh-row"><span class="kh-keys"><kbd>Esc</kbd></span><span>Pause · release the mouse</span></div></section>
+      </div>
+      <div class="kh-foot"><label class="kh-hide"><input type="checkbox" id="kh-dont"> Don't show at the start again</label><button class="kh-go" type="button">START PLAYING <kbd>Enter</kbd></button></div>
+    </div>
+  </div>
   <div id="pause" class="screen hidden">
     <div class="pause-inner">
       <h2>PAUSED</h2>

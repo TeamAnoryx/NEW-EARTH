@@ -3,7 +3,11 @@
  * action buttons (interact — tap or hold, crouch toggle, sprint hold, map, pause).
  * Feeds the same Input object the keyboard uses, so gameplay code is input-agnostic.
  */
-export const isTouch = () => matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+/**
+ * Phone/tablet = the PRIMARY pointer is a finger. Touch-screen laptops and desktops with a
+ * touch panel have a mouse/trackpad as primary pointer and get the keyboard + mouse controls.
+ */
+export const isTouch = () => matchMedia('(pointer: coarse)').matches && !matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 export class TouchControls {
   constructor(input, hooks = {}) {

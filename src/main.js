@@ -57,6 +57,10 @@ class Game {
       });
     }
     this.input.onEscape = () => this.onEscape();
+    // desktop: the browser released the mouse (Esc) → pause, so a click on RESUME re-captures it
+    window.addEventListener('keydown', (e) => { if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !$('keyhelp').classList.contains('hidden')) { e.preventDefault(); this.closeKeyHelp(); } });
+    this.input.onLockLost = () => { if (this.mode === 'play' && !this.tablet.open && !this.isTouch) this.pause(); };
+    $('keyhelp').querySelector('.kh-go').addEventListener('click', (e) => { e.stopPropagation(); this.audio.uiSound('play'); this.closeKeyHelp(); });
     // pause when the tab is hidden (rAF stops; avoid a huge delta and missed cues)
     // and silence everything: music, ambience, terror layer, heartbeat, intro soundtrack
     const onHide = () => {
@@ -188,6 +192,7 @@ class Game {
   }
 
   onEscape() {
+    if (!$('keyhelp').classList.contains('hidden')) { this.closeKeyHelp(); return; }
     if (this.tablet.open) { this.closeTablet(); return; }
     const open = ['panel-controls', 'panel-settings', 'panel-credits'].filter((id) => !$(id).classList.contains('hidden'));
     if (open.length) { open.forEach((id) => $(id).classList.add('hidden')); this.audio.uiSound('close'); return; }
@@ -206,6 +211,7 @@ class Game {
     if (this.wantFullscreen) this._goFullscreen();
     this.audio.resumeAll();
     $('pause').classList.add('hidden');
+    $('keyhelp').classList.add('hidden');
     if (this.mode === 'pause') this.mode = 'play';
     this.input.requestLock();
   }
@@ -216,6 +222,7 @@ class Game {
     else if (id === 'prev') this.openLevelPicker();
     else if (id === 'switch') { if (this.story?.switchAllowed && this.story.player.enabled) this.story.openSwitcher(); }
     else if (id === 'tasks') this.hud.toggleTasks();
+    else if (id === 'keys') this.openKeyHelp();
     else if (id === 'clue') { if (this.hud.clueOpen) this.hud.clue(null); else if (this.story && this.mode === 'play') { this.hud.toggleTasks(false); this.hud.clue(this.story.currentClue()); } }
     else if (id === 'light') { const on = this.story?.toggleLight(); btn.classList.toggle('on', !!on); this.audio.uiSound(on ? 'on' : 'off'); }
     else if (id === 'pause') { if (this.mode === 'pause') this.resume(); else if (this.mode === 'play') this.pause(); }
@@ -332,6 +339,26 @@ class Game {
     this.story.checkpoint = 'intro';
     this.story.inventory = [];
     this.story.start(beat || (LEVELS[level] || LEVELS[0]).beat);
+    if (!this.isTouch && !this._keyHelpOff()) this.openKeyHelp();
+  }
+
+  _keyHelpOff() { try { return localStorage.getItem('new-earth-keyhelp-off') === '1'; } catch (e) { console.info('Settings unavailable:', e?.message || e); return false; } }
+
+  /** Desktop only: centred keyboard & mouse guide. The game waits underneath until START PLAYING. */
+  openKeyHelp() {
+    if (this.isTouch || this.mode === 'title') return;
+    if (this.mode === 'play') { this.mode = 'pause'; this.audio.suspend(); }
+    this.input.exitLock();
+    $('kh-dont').checked = this._keyHelpOff();
+    $('keyhelp').classList.remove('hidden');
+  }
+
+  closeKeyHelp() {
+    const box = $('keyhelp'); if (box.classList.contains('hidden')) return;
+    box.classList.add('hidden');
+    try { localStorage.setItem('new-earth-keyhelp-off', $('kh-dont').checked ? '1' : '0'); } catch (e) { console.info('Setting not saved:', e?.message || e); }
+    this.input.pressed.clear(); // the Enter that closed it must not also skip a dialogue line
+    if ($('pause').classList.contains('hidden')) this.resume(); // runs inside the click/keypress → mouse capture allowed
   }
 
   /**
@@ -461,6 +488,14 @@ class Game {
         if (I.wasPressed('KeyF')) { const on = this.story.toggleLight(); document.querySelector('[data-tb="light"]')?.classList.toggle('on', !!on); }
         if (I.wasPressed('KeyJ')) this.hud.toggleTasks();
         if (I.wasPressed('KeyV')) this.story.toggleLookAround();
+        if (I.wasPressed('KeyQ')) this.onTopbar('clue', document.querySelector('[data-tb="clue"]'));
+        if (I.wasPressed('KeyG') && !$('assignbar').classList.contains('hidden')) this.story.openAssign?.();
+        if (I.wasPressed('KeyK')) this.story.skipCinematic();
+        if (I.wasPressed('KeyH')) this.openKeyHelp();
+        if (I.wasPressed('KeyP')) this.pause();
+        // arrow keys turn (for players without a mouse / trackpad drag)
+        const turn = (I.isDown('ArrowLeft') ? 1 : 0) - (I.isDown('ArrowRight') ? 1 : 0);
+        if (turn) p.camYaw += turn * 2.2 * dt;
         const ff = this.story.ff ? 60 : 1;
         if (ff > 1) this.hud.advance();
         this.story.update(dt * ff);

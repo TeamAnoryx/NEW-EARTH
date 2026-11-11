@@ -78,8 +78,8 @@ export class PlayerController {
     if (this.enabled) {
       if (I.isDown('KeyW', 'ArrowUp')) mz += 1;
       if (I.isDown('KeyS', 'ArrowDown')) mz -= 1;
-      if (I.isDown('KeyA', 'ArrowLeft')) mx += 1;
-      if (I.isDown('KeyD', 'ArrowRight')) mx -= 1;
+      if (I.isDown('KeyA')) mx += 1;
+      if (I.isDown('KeyD')) mx -= 1;
       if (I.analog) { mx -= I.analog.x; mz -= I.analog.y; }
       if (this.area !== 'D') {
         const crouchHeld = I.isDown('KeyC', 'ControlLeft', 'ControlRight');
