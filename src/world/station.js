@@ -47,7 +47,7 @@ export class Station {
     buildDeck(this);
     this._buildLights();
     this._buildParticles();
-    this._batchStatic();
+    try { this._batchStatic(); } catch (e) { console.warn('Static batching failed; drawing unbatched:', e?.message || e); } // an optimisation only — never block loading
   }
 
   /**

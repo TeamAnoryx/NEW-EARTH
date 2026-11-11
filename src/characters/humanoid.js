@@ -86,7 +86,7 @@ export class Humanoid {
     this.rig.scale.setScalar(this.scale);
     this.body.add(this.rig);
     this._build();
-    this._batch();
+    try { this._batch(); } catch (e) { console.warn(`Character batching failed for ${this.opts.name}; drawing unbatched:`, e?.message || e); }
 
     // animation state
     this.time = Math.random() * 100;
