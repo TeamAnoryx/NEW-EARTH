@@ -288,5 +288,6 @@ try {
   console.error(`Score render failed: ${e.message}`);
   process.exitCode = 1;
 } finally {
-  rmSync(TMP, { recursive: true, force: true });
+  try { rmSync(TMP, { recursive: true, force: true }); }
+  catch (e) { console.warn(`Could not remove temp folder ${TMP}: ${e.message}`); }
 }

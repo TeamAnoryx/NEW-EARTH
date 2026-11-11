@@ -76,7 +76,7 @@ export class Intro {
     this.onBootProgress = onBootProgress;
     // Self-hosted intro media (built by scripts/make-intro.sh) wins over YouTube when present.
     this.localManifest = fetch('./intro/manifest.json', { cache: 'no-cache' })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => { if (r.ok) return r.json(); console.info(`No self-hosted intro media (HTTP ${r.status}); using YouTube embed.`); return null; })
       .then((m) => {
         if (!m) return null;
         const ok = typeof m.duration === 'number' && m.duration > 3 && Array.isArray(m.segments) && m.segments.length
