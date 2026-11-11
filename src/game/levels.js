@@ -380,7 +380,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
   P.update = function (dt) {
     baseUpdate.call(this, dt);
     const S = this.station;
-    if (this.area === 'C' && S.ctrlRoom) { S.ctrlRoom.update(dt); S.guideLine.userData.update(dt); S.guideFuse.userData.update(dt); }
+    if (this.area === 'C' && S.ctrlRoom) { S.ctrlRoom.update(dt, this.lead.position.x > 25.5); S.guideLine.userData.update(dt); S.guideFuse.userData.update(dt); }
     this._updateDeck(dt);
     this._updateL3(dt);
     this._updateL4(dt);

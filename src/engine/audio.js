@@ -155,10 +155,9 @@ export class Audio {
 
   setAlarmLevel(v, time = 1) { const l = this._loops.alarm; if (l) l.out.gain.setTargetAtTime(v, this.now, time / 3); }
 
-  /** Dark ambient score: detuned saws through a slow-moving low-pass. */
-  startMusic(mood = 'dread') {
+  /** Fallback (no music files): dark ambient score from detuned saws through a slow low-pass. */
+  _startMusicSynth(mood = 'dread') {
     if (!this.ready) return;
-    this.stopMusic(0.1);
     const c = this.ctx;
     const out = c.createGain(); out.gain.value = 0; out.connect(this.music);
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 6;
@@ -189,8 +188,105 @@ export class Audio {
     this._loops.music = { out, nodes };
   }
 
-  /** Peaceful bed for a level (0–3). */
-  startLevelMusic(level) { if (this._levelMood !== level || !this._loops.music) { this._levelMood = level; this.startMusic(`l${level}`); } }
+  // ------------------------------------------------------------------ pre-rendered score
+  /**
+   * The score is pre-rendered (scripts/compose-score.mjs → public/music/*.mp3). Each file is
+   * decoded once into an AudioBuffer and looped by the browser's audio thread with an
+   * equal-power cross-fade at every repeat — no JavaScript timers per note, so a busy frame can
+   * never make it crackle. If a file can't load (offline single-file build, blocked network),
+   * the old live-synthesised score takes over.
+   */
+  _loadTrack(name) {
+    this._tracks ||= new Map();
+    if (this._tracks.has(name)) { const v = this._tracks.get(name); this._tracks.delete(name); this._tracks.set(name, v); return v; }
+    const base = (import.meta.env?.BASE_URL ?? './');
+    const p = fetch(`${base}music/${name}.mp3`)
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
+      .then((ab) => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
+      .catch((e) => { console.warn(`Music "${name}" unavailable, using synthesised fallback:`, e?.message || e); this._tracks.delete(name); return null; });
+    this._tracks.set(name, p);
+    // keep memory bounded on phones: at most 3 decoded tracks (+ the threat layer)
+    for (const k of this._tracks.keys()) { if (this._tracks.size <= 4) break; if (k !== 'terror' && k !== name) this._tracks.delete(k); }
+    return p;
+  }
+
+  /** Warm the cache (e.g. the next level's track) without playing it. */
+  preloadMusic(...names) { if (this.ready) names.forEach((n) => this._loadTrack(n)); }
+
+  _curve(up) { const n = 64, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1); c[i] = up ? Math.sin(x * Math.PI / 2) : Math.cos(x * Math.PI / 2); } return c; }
+
+  /** Endless cross-faded loop of `buf` into `dest`. Returns a handle with .stop(fade). */
+  _loopBuffer(buf, dest, level, fadeIn = 2) {
+    const c = this.ctx, XF = Math.min(3, buf.duration / 4);
+    const out = c.createGain(); out.gain.value = 0.0001; out.connect(dest);
+    out.gain.setTargetAtTime(level, c.currentTime, fadeIn / 3);
+    const h = { out, srcs: new Set(), timer: null, alive: true };
+    const up = this._curve(true), down = this._curve(false);
+    const play = (t, first) => {
+      if (!h.alive) return;
+      const src = c.createBufferSource(); src.buffer = buf;
+      const g = c.createGain(); src.connect(g).connect(out);
+      const end = t + buf.duration;
+      if (first) g.gain.setValueAtTime(1, t); else g.gain.setValueCurveAtTime(up, t, XF);
+      g.gain.setValueCurveAtTime(down, end - XF, XF);
+      src.start(t); src.stop(end + 0.05);
+      h.srcs.add(src); src.onended = () => h.srcs.delete(src);
+      const next = end - XF;
+      // queue the next repeat well ahead (audio-clock time; timers only need to be roughly on time)
+      h.timer = setTimeout(() => play(next, false), Math.max(0, (next - c.currentTime - 4) * 1000));
+    };
+    play(c.currentTime + 0.03, true);
+    h.stop = (fade = 1.5) => {
+      if (!h.alive) return; h.alive = false; clearTimeout(h.timer);
+      out.gain.cancelScheduledValues(c.currentTime); out.gain.setTargetAtTime(0.0001, c.currentTime, Math.max(0.05, fade / 3));
+      setTimeout(() => { h.srcs.forEach((s) => { try { s.stop(); } catch (e) { console.info('music source already stopped', e?.message || e); } }); out.disconnect(); }, fade * 1000 + 400);
+    };
+    h.level = (v, time = 0.5) => out.gain.setTargetAtTime(Math.max(0.0001, v), c.currentTime, time / 3);
+    return h;
+  }
+
+  /** Play a named track on the music bus (replacing the current one). */
+  startMusic(mood = 'dread') {
+    if (!this.ready) return;
+    const MAP = { calm: 'finale', tension: 'l3', dread: 'l2', l0: 'l0', l1: 'l1', l2: 'l2', l3: 'l3', l4: 'l4', finale: 'finale' };
+    const name = MAP[mood] || 'l2';
+    this.stopMusic(1.2);
+    const req = (this._musicReq = {});
+    this.music.gain.setTargetAtTime(0.55, this.now, 0.5);
+    this._loadTrack(name).then((buf) => {
+      if (req !== this._musicReq) return; // superseded while loading
+      if (!buf) { this._startMusicSynth(mood); return; }
+      this._loops.music = { file: this._loopBuffer(buf, this.music, name === 'finale' ? 0.8 : 0.62, 2.5), nodes: [] };
+    });
+  }
+
+  startMenuMusic() {
+    if (!this.ready || this._menu) return;
+    const state = (this._menu = { pending: true });
+    this._loadTrack('menu').then((buf) => {
+      if (this._menu !== state) return;
+      if (!buf) { this._menu = null; this._startMenuSynth(); return; }
+      state.file = this._loopBuffer(buf, this.master, this.musicMuted ? 0.0001 : 0.5, 3);
+      state.pending = false;
+    });
+  }
+
+  _startTerror() {
+    const state = (this._terror = { t: 0, pending: true, out: null, nodes: [] });
+    this._loadTrack('terror').then((buf) => {
+      if (this._terror !== state) return;
+      if (!buf) { this._terror = null; this._startTerrorSynth(); if (this._terror) this._terror.t = 0; return; }
+      state.file = this._loopBuffer(buf, this.master, 0.0001, 0.3);
+      state.out = state.file.out; state.pending = false;
+      state.file.level(state.want ?? 0.0001, 0.4);
+    });
+  }
+
+  /** Peaceful bed for a level (0–4). */
+  startLevelMusic(level) {
+    if (this._levelMood !== level || (!this._loops.music && !this._musicReq)) { this._levelMood = level; this.startMusic(`l${level}`); }
+    this.preloadMusic('terror', `l${Math.min(4, level + 1)}`); // the next level and the threat layer are ready before they're needed
+  }
 
   /**
    * Infected / terror layer, cross-faded by threat (0 = absent, 1 = they are on you):
@@ -204,12 +300,15 @@ export class Audio {
     if (Math.abs(t - this._terror.t) < 0.02) return;
     const rising = t > this._terror.t;
     this._terror.t = t;
-    this._terror.out.gain.setTargetAtTime(t * 0.75, this.now, rising ? 0.25 : 0.9);
+    const tr = this._terror;
+    if (tr.file) tr.file.level(t * 0.75, rising ? 0.75 : 2.7);
+    else if (tr.pending) tr.want = t * 0.75;
+    else tr.out?.gain.setTargetAtTime(t * 0.75, this.now, rising ? 0.25 : 0.9);
     // the calm bed ducks while they are close
     this.music?.gain.setTargetAtTime(0.55 * (1 - t * 0.7), this.now, 0.5);
   }
 
-  _startTerror() {
+  _startTerrorSynth() {
     const c = this.ctx;
     const out = c.createGain(); out.gain.value = 0; out.connect(this.master); out.connect(this.reverbSend);
     const nodes = [];
@@ -233,14 +332,18 @@ export class Audio {
   stopTerror() {
     const tr = this._terror; if (!tr) return;
     this._terror = null;
-    tr.out.gain.setTargetAtTime(0, this.now, 0.4);
     this.music?.gain.setTargetAtTime(0.55, this.now, 0.5);
+    if (tr.file) { tr.file.stop(1.2); return; }
+    if (tr.pending) return;
+    tr.out.gain.setTargetAtTime(0, this.now, 0.4);
     setTimeout(() => tr.nodes.forEach((x) => { try { x.stop(); } catch (e) { console.info('terror node already stopped', e?.message || e); } }), 2500);
   }
 
   stopMusic(fade = 2) {
+    this._musicReq = null; // cancel a track still loading
     const l = this._loops.music; if (!l) return;
     delete this._loops.music;
+    if (l.file) { l.file.stop(fade); return; }
     l.out.gain.setTargetAtTime(0, this.now, fade / 3);
     setTimeout(() => l.nodes.forEach((n) => { try { n.stop(); } catch { /* already stopped */ } }), fade * 1000 + 500);
   }
@@ -539,7 +642,7 @@ export class Audio {
    * Generative ambient loop for the main console: evolving pad (Am9 → Fmaj7 → Cmaj9 → G6sus),
    * sub bass, and a sparse bell arpeggio with echo. Runs until stopMenuMusic().
    */
-  startMenuMusic() {
+  _startMenuSynth() {
     if (!this.ready || this._menu) return;
     const c = this.ctx;
     const out = c.createGain(); out.gain.value = 0.0001; out.connect(this.master); out.connect(this.reverbSend);
@@ -588,17 +691,25 @@ export class Audio {
   stopMenuMusic(fade = 1.5) {
     const m = this._menu; if (!m) return;
     this._menu = null; clearInterval(m.iv);
+    if (m.file) { m.file.stop(fade); return; }
+    if (m.pending) return;
     m.out.gain.setTargetAtTime(0.0001, this.now, fade / 4);
     setTimeout(() => { m.nodes.forEach((n) => { try { n.stop(); } catch { /* stopped */ } }); m.out.disconnect(); }, fade * 1000 + 600);
   }
 
-  setMusicMuted(muted) { this.musicMuted = muted; if (this.master && this._menu) this._menu.out.gain.setTargetAtTime(muted ? 0.0001 : 0.5, this.now, 0.2); }
+  setMusicMuted(muted) {
+    this.musicMuted = muted;
+    const m = this._menu; if (!this.master || !m) return;
+    if (m.file) m.file.level(muted ? 0.0001 : 0.5, 0.6);
+    else m.out?.gain.setTargetAtTime(muted ? 0.0001 : 0.5, this.now, 0.2);
+  }
 
   stopAll() {
     this.stopTerror();
     this.setHeartbeat(0);
     Object.keys(this._loops).forEach((k) => {
       const l = this._loops[k];
+      if (l.file) { l.file.stop(0.6); return; }
       if (l.iv) clearInterval(l.iv);
       l.out.gain.setTargetAtTime(0, this.now, 0.2);
       setTimeout(() => l.nodes.forEach((n) => { try { n.stop(); } catch { /* noop */ } }), 1500);

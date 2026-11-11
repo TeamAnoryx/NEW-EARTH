@@ -110,10 +110,12 @@ export class Renderer {
   }
 
   setQuality(name) {
-    const q = QUALITY[name] || QUALITY.high;
+    const q = { ...(QUALITY[name] || QUALITY.high) };
     this.dynamicPR = undefined;
     this.quality = q;
     this.qualityName = name;
+    // phones/tablets have tiny pixels: a 1.15× ceiling looks the same and costs ~40% fewer pixels
+    if (matchMedia('(pointer: coarse)').matches) q.pixelRatio = Math.min(q.pixelRatio, 1.15);
     const dpr = Math.min(window.devicePixelRatio || 1, q.pixelRatio);
     this.renderer.setPixelRatio(dpr);
     this.composer.setPixelRatio(dpr);

@@ -280,7 +280,7 @@ export function installEndgame(Story, { V, saveProgress, saveResume }) {
       z.c.root.visible = true;
     });
     this.lightOn = true; this._applyLight();
-    this.audio.startLevelMusic(3);
+    this.audio.startLevelMusic(4);
   };
 
   P.beat_l4 = async function () {

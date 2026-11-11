@@ -37,3 +37,10 @@ Tap to enter → full screen + landscape lock → 3-2-1 countdown → footage mo
 Earth textures: three.js r186 `examples/textures/planets` (day, night, bump/roughness/clouds), resized to 2048 px for mobile GPUs. See `CREDITS.md`.
 
 Design docs: `design/game-brief.md`, `design/art-bible.md`.
+
+## Music
+
+The background score is original and pre-rendered: `node scripts/compose-score.mjs` (needs ffmpeg)
+writes `public/music/*.mp3` (menu, levels 0–4, threat layer, ending). Tracks are decoded once and
+looped with cross-fades on the audio thread, so they don't crackle when the game is busy. If a file
+can't load (e.g. the offline single-file build), the game falls back to its live-synthesised score.

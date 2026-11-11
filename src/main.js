@@ -61,6 +61,7 @@ class Game {
     // desktop: the browser released the mouse (Esc) → pause, so a click on RESUME re-captures it
     window.addEventListener('keydown', (e) => { if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !$('keyhelp').classList.contains('hidden')) { e.preventDefault(); this.closeKeyHelp(); } });
     this.input.onLockLost = () => { if (this.mode === 'play' && !this.tablet.open && !this.isTouch) this.pause(); };
+    $('keyhint').addEventListener('click', (e) => { e.stopPropagation(); this.audio.uiSound('press'); this.openKeyHelp(); });
     $('keyhelp').querySelector('.kh-go').addEventListener('click', (e) => { e.stopPropagation(); this.audio.uiSound('play'); this.closeKeyHelp(); });
     // pause when the tab is hidden (rAF stops; avoid a huge delta and missed cues)
     // and silence everything: music, ambience, terror layer, heartbeat, intro soundtrack
@@ -488,15 +489,15 @@ class Game {
         p.camYaw -= m.x;
         // first person: look up/down like a person; look-around orbit: never from below the floor
         p.camPitch = p.firstPerson ? Math.max(-1.1, Math.min(1.25, p.camPitch + m.y)) : Math.max(-0.12, Math.min(0.9, p.camPitch + m.y));
-        if (I.wasPressed('Space', 'Enter')) this.hud.advance();
+        if (I.wasPressed('Space')) this.hud.advance();
+        if (I.wasPressed('Enter', 'NumpadEnter')) this.story.skipCinematic(); // skip the scene
         if (I.wasPressed('Tab') && this.tabletEnabled && this.story.player.enabled) this.openTablet(null);
         if (I.wasPressed('KeyF')) { const on = this.story.toggleLight(); document.querySelector('[data-tb="light"]')?.classList.toggle('on', !!on); }
         if (I.wasPressed('KeyJ')) this.hud.toggleTasks();
         if (I.wasPressed('KeyV')) this.story.toggleLookAround();
         if (I.wasPressed('KeyQ')) this.onTopbar('clue', document.querySelector('[data-tb="clue"]'));
         if (I.wasPressed('KeyG') && !$('assignbar').classList.contains('hidden')) this.story.openAssign?.();
-        if (I.wasPressed('KeyK')) this.story.skipCinematic();
-        if (I.wasPressed('KeyH')) this.openKeyHelp();
+        if (I.wasPressed('KeyK', 'KeyH')) this.openKeyHelp();
         if (I.wasPressed('KeyP')) this.pause();
         // arrow keys turn (for players without a mouse / trackpad drag)
         const turn = (I.isDown('ArrowLeft') ? 1 : 0) - (I.isDown('ArrowRight') ? 1 : 0);

@@ -630,6 +630,13 @@ export class Station {
     L.sKey.intensity = s || d ? 38 : 0;
     L.sHall.intensity = s || d ? 7 : 0;
     this.scene.environmentIntensity = q ? 0.1 : 0.06;
+    // a shadow-casting light re-renders the whole scene every frame even at intensity 0 —
+    // freeze the shadow maps of lights that are off here (biggest single frame-time saving)
+    for (const [l, on] of [[L.sun, q], [L.qKey, q], [L.sKey, s || d]]) {
+      if (!l?.shadow) continue;
+      if (on && !l.shadow.autoUpdate) l.shadow.needsUpdate = true;
+      l.shadow.autoUpdate = !!on;
+    }
     if (area === 'C') {
       // deck lights follow the blackout / aux-power state; the control-room lamp reuses dFan
       L.hemi.intensity = this.blackout ? 0.012 : 0.08;

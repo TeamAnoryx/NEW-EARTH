@@ -603,3 +603,12 @@ body.touch #keyhelp { display: none !important; }
 @media (max-height: 430px) { .ff-bubble span { font-size: 13px; } .ff-bubble { padding: 8px 11px 9px; } }
 .ff-still.ff-missing { background: radial-gradient(ellipse at 60% 40%, #3a1a0e 0%, #0b0606 55%, #000 100%); }
 .ff-still.ff-missing img { display: none; }
+
+/* desktop: "Press K for keys" hint, bottom-left beside LOOK AROUND */
+#keyhint { position: absolute; left: calc(env(safe-area-inset-left) + 96px); bottom: calc(env(safe-area-inset-bottom) + 30px); z-index: 13; pointer-events: auto; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 8px; border-radius: 999px; border: 1px solid rgba(95, 243, 255, .25); background: rgba(4, 12, 20, .55);
+  color: #b9cfdc; font: 600 10px var(--mono); letter-spacing: .18em; text-transform: uppercase; backdrop-filter: blur(4px); transition: opacity .3s, border-color .2s; }
+#keyhint kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; border-radius: 5px; font: 700 10px var(--mono); color: #031018; background: linear-gradient(180deg, #e9fbff, #9fe9f7); box-shadow: 0 2px 0 #2e7f8f; }
+#keyhint:hover { border-color: var(--cyan); color: #fff; }
+body.touch #keyhint { display: none !important; }
+body.dying #keyhint, body.focus-ui #keyhint { opacity: 0; pointer-events: none; }

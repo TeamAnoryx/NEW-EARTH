@@ -525,6 +525,7 @@ export class Humanoid {
    */
   update(dt) {
     this.time += dt;
+    if (!this.root.visible) return; // off-screen area / hidden: skip ~60 joint updates per character
     const t = this.time;
     // gait phase
     const st = this.state;

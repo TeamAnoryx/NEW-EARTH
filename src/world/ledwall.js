@@ -173,7 +173,7 @@ export function buildControlRoom(st, D, Y0) {
   let acc = 0, t = 0, power = 0, target = 0;
   const api = {
     setPower(on, instant = false) { target = on ? 1 : 0; if (instant) power = target; },
-    update(dt) {
+    update(dt, near = true) {
       t += dt; acc += dt;
       power += (target - power) * (1 - Math.exp(-dt * 3));
       const flick = power > 0.02 && power < 0.97 ? (Math.random() > 0.3 ? 1 : 0.3) : 1;
@@ -183,7 +183,7 @@ export function buildControlRoom(st, D, Y0) {
       for (const s of screens) {
         s.mat.color.setScalar(lvl); s.glow.material.opacity = 0.8 * lvl;
       }
-      if (acc < 0.12 || power < 0.02) return; // ~8 fps repaint, nothing when dark
+      if (acc < 0.2 || power < 0.02 || !near) return; // ~5 fps repaint, only when you can see them
       acc = 0;
       for (const s of screens) {
         if (!s.g || !PAINT[s.kind]) continue;
