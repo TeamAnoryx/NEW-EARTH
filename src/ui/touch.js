@@ -15,14 +15,35 @@ export function isTouch() {
   catch (e) { console.warn('Device detection failed; assuming keyboard + mouse:', e?.message || e); return false; }
 }
 
+const CONTROLS_KEY = 'new-earth-controls'; // 'auto' | 'touch' | 'desktop' — set in Settings
+
+/** The player's manual choice, if any (Settings → Controls). */
+export function controlsOverride() {
+  try { const v = localStorage.getItem(CONTROLS_KEY); return v === 'touch' || v === 'desktop' ? v : 'auto'; }
+  catch (e) { console.info('Controls setting unavailable:', e?.message || e); return 'auto'; }
+}
+export function setControlsOverride(v) {
+  try { localStorage.setItem(CONTROLS_KEY, v); } catch (e) { console.info('Controls setting not saved:', e?.message || e); }
+}
+
 function detectTouch() {
+  const o = controlsOverride();
+  if (o !== 'auto') return o === 'touch';
   const ua = navigator.userAgent || '';
   const touchPoints = navigator.maxTouchPoints || 0;
-  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;                          // phones + tablets (Android tablets drop "Mobile", not "Android")
-  if (/Macintosh/i.test(ua) && touchPoints > 1) return true;                        // iPadOS posing as macOS (real Macs have no touch points)
-  if (navigator.userAgentData?.mobile) return true;                                 // Chromium's own phone/tablet flag
-  if (/Windows|CrOS|Linux|Macintosh/i.test(ua) && matchMedia('(any-pointer: fine)').matches) return false; // laptops/PCs with a mouse or trackpad, touch screen or not
-  return matchMedia('(pointer: coarse)').matches;                                   // anything else: trust the primary pointer
+  const mq = (q) => matchMedia(q).matches;
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;                 // phones + tablets in mobile mode
+  if (/Macintosh/i.test(ua) && touchPoints > 1) return true;               // iPadOS posing as macOS (real Macs have no touch points)
+  if (navigator.userAgentData?.mobile) return true;                        // Chromium's own phone/tablet flag
+  if (/Android|iOS|iPadOS/i.test(navigator.userAgentData?.platform || '')) return true; // still "Android" in desktop-site mode
+  if (touchPoints > 0 && /arm|aarch64/i.test(navigator.platform || '') && !/Mac/i.test(navigator.platform || '')) return true; // ARM Linux + touch = Android tablet
+  // Android tablets now ask for the DESKTOP site by default (they then claim to be "Linux"),
+  // and a stylus or keyboard cover adds a fine pointer — so a fine pointer alone proves nothing.
+  // What decides it is the PRIMARY input: a finger (coarse, no hover) → touch controls.
+  if (touchPoints > 0 && mq('(pointer: coarse)')) return true;
+  if (touchPoints > 0 && !mq('(hover: hover)')) return true;              // touch-first device, no hovering mouse
+  if (touchPoints > 0 && /Linux/i.test(ua) && !/CrOS/i.test(ua) && !mq('(any-hover: hover) and (any-pointer: fine)')) return true;
+  return mq('(pointer: coarse)');                                          // PCs/laptops: mouse or trackpad is primary → keyboard + mouse
 }
 
 export class TouchControls {

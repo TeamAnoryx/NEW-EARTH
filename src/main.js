@@ -8,7 +8,7 @@ import { getMaterials } from './world/materials.js';
 import { Station, AREAS } from './world/station.js';
 import { createEarth, createStars, createSun, createStationExterior } from './world/space.js';
 import { Story } from './game/story.js';
-import { TouchControls, isTouch } from './ui/touch.js';
+import { TouchControls, isTouch, controlsOverride, setControlsOverride } from './ui/touch.js';
 import { Intro } from './intro/intro.js';
 import { buildShip, playEndingFilm } from './game/finale.js';
 import { CREDITS, WORDMARK_SVG } from './intro/brand.js';
@@ -160,6 +160,14 @@ class Game {
     sens.addEventListener('input', () => { s.sens = +sens.value; this.applySettings(); });
     vol.addEventListener('input', () => { s.vol = +vol.value; this.applySettings(); });
     inv.addEventListener('change', () => { s.invert = inv.checked; this.applySettings(); });
+    // Controls: auto-detect, or force touch / keyboard + mouse (controls are built at start → reload)
+    const ctl = $('opt-controls');
+    ctl.value = controlsOverride();
+    ctl.addEventListener('change', () => {
+      setControlsOverride(ctl.value);
+      this.hud.toast?.('SWITCHING CONTROLS…', 1.2);
+      setTimeout(() => location.reload(), 300); // progress is saved; returning players skip straight to the console
+    });
   }
 
   applySettings() {
