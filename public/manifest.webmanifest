@@ -1,7 +1,7 @@
 {
   "name": "NEW EARTH",
   "short_name": "NEW EARTH",
-  "description": "Space-station survival \u2014 escape the outbreak.",
+  "description": "Space-station survival — escape the outbreak.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
@@ -10,9 +10,14 @@
     "standalone"
   ],
   "orientation": "landscape",
-  "background_color": "#02040a",
+  "background_color": "#ffffff",
   "theme_color": "#02040a",
   "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
     {
       "src": "icon-192.png",
       "sizes": "192x192",
