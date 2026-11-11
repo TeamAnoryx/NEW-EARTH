@@ -72,7 +72,15 @@ class Still {
     this.stage = stage;
     this.aspect = aspect;
     this.el = document.createElement('div'); this.el.className = 'ff-still';
-    this.img = new Image(); this.img.src = src; this.img.alt = ''; this.img.decoding = 'async'; this.img.draggable = false;
+    this.img = new Image(); this.img.alt = ''; this.img.decoding = 'async'; this.img.draggable = false;
+    // a missing/blocked image must not leave a blank stage: log it and show a dark space backdrop instead
+    this.failed = false;
+    this.img.onerror = () => {
+      this.failed = true;
+      console.warn('Ending image failed to load:', src);
+      this.el.classList.add('ff-missing');
+    };
+    this.img.src = src;
     this.el.appendChild(this.img);
     stage.appendChild(this.el);
     this.cam = { x: 0.5, y: 0.5, z: 1 };
@@ -80,7 +88,13 @@ class Still {
     this.layout();
   }
 
-  ready() { return this.img.decode ? this.img.decode().catch((e) => console.warn('Ending image failed to decode:', this.img.src, e?.message || e)) : Promise.resolve(); }
+  /** Resolves once the image can be shown — or failed (never hangs the film; capped at 8 s on a slow link). */
+  ready() {
+    const loaded = this.img.decode
+      ? this.img.decode().catch((e) => { if (!this.failed) console.warn('Ending image failed to decode:', this.img.src, e?.message || e); })
+      : new Promise((r) => { this.img.onload = r; });
+    return Promise.race([loaded, new Promise((r) => setTimeout(r, 8000))]);
+  }
 
   layout() {
     const sw = innerWidth, sh = innerHeight;

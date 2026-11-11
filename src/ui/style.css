@@ -601,3 +601,5 @@ body.touch #keyhelp { display: none !important; }
 .ff-skip:hover { opacity: 1; }
 .ff-skip svg { width: 14px; height: 14px; fill: currentColor; }
 @media (max-height: 430px) { .ff-bubble span { font-size: 13px; } .ff-bubble { padding: 8px 11px 9px; } }
+.ff-still.ff-missing { background: radial-gradient(ellipse at 60% 40%, #3a1a0e 0%, #0b0606 55%, #000 100%); }
+.ff-still.ff-missing img { display: none; }
