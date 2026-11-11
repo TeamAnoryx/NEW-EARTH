@@ -75,6 +75,7 @@ export class PlayerController {
   get height() { return this.mode === 'crawl' ? 0.7 : this.mode === 'crouch' ? 1.2 : 1.8; }
 
   update(dt, obstacles) {
+    this._obs = obstacles; // the first-person camera keeps the eye off these
     const c = this.char, I = this.input;
     this.noise = Math.max(0, this.noise - dt * 1.6);
     let mx = 0, mz = 0;
@@ -201,6 +202,19 @@ export class ThirdPersonCamera {
       const eye = head.add(new THREE.Vector3(Math.sin(yaw) * 0.1, ctrl.mode === 'crawl' ? 0.1 : 0.13, Math.cos(yaw) * 0.1));
       const A = AREAS[ctrl.area];
       if (A) eye.y = Math.min(A.ceilY - 0.1, Math.max(A.floorY + 0.22, eye.y));
+      // never let the eye enter or graze a wall/panel (the head leans ahead of the body circle) —
+      // otherwise you could see through geometry into space
+      const EYE_GAP = 0.16;
+      for (let iter = 0; iter < 2; iter++) {
+        for (const b of ctrl._obs || []) {
+          if (eye.y < b.minY - 0.05 || eye.y > b.maxY + 0.05) continue;
+          const cx = Math.max(b.minX, Math.min(eye.x, b.maxX)), cz = Math.max(b.minZ, Math.min(eye.z, b.maxZ));
+          const dx = eye.x - cx, dz = eye.z - cz, d2 = dx * dx + dz * dz;
+          if (d2 >= EYE_GAP * EYE_GAP) continue;
+          if (d2 > 1e-8) { const d = Math.sqrt(d2); eye.x += (dx / d) * (EYE_GAP - d); eye.z += (dz / d) * (EYE_GAP - d); }
+          else { const body = ch.position; const bx = body.x - eye.x, bz = body.z - eye.z, bl = Math.hypot(bx, bz) || 1; eye.x += (bx / bl) * EYE_GAP; eye.z += (bz / bl) * EYE_GAP; }
+        }
+      }
       // smooth vertical bob (keeps walking natural, not jittery); horizontal follows tightly
       if (!this._eye) this._eye = eye.clone();
       this._eye.x = eye.x; this._eye.z = eye.z;
@@ -256,8 +270,9 @@ export class Follower {
     this.scripted = null;   // {target: Vector3, speed, state, res}
   }
 
-  walkTo(target, speed = 1.6, state = null) {
-    return new Promise((res) => { this.scripted = { target: target.clone(), speed, state, res }; });
+  /** Scripted walk. `collide` = respect walls/obstacles (gameplay walks); cutscene walks pass false. */
+  walkTo(target, speed = 1.6, state = null, collide = false) {
+    return new Promise((res) => { this.scripted = { target: target.clone(), speed, state, res, collide }; });
   }
 
   update(dt, trail, obstacles, area, others) {
@@ -283,7 +298,7 @@ export class Follower {
     let moved = 0;
     if (target) {
       const dx = target.x - c.position.x, dz = target.z - c.position.z, d = Math.hypot(dx, dz);
-      const arrive = this.scripted ? 0.08 : 0.35;
+      const arrive = this.scripted ? (this.scripted.collide ? 0.3 : 0.08) : 0.35;
       if (d > arrive) {
         const step = Math.min(d, speed * dt * (d > 2.5 && !this.scripted ? 1.6 : 1));
         const to = { x: c.position.x + (dx / d) * step, z: c.position.z + (dz / d) * step };
@@ -294,7 +309,7 @@ export class Follower {
           if (od < 0.55 && od > 1e-4) { to.x += (ox / od) * (0.55 - od) * 0.5; to.z += (oz / od) * (0.55 - od) * 0.5; }
         }
         let r = to;
-        if (!this.scripted) {
+        if (!this.scripted || this.scripted.collide) {
           const sx = to.x - c.position.x, sz = to.z - c.position.z, n = Math.max(1, Math.ceil(Math.hypot(sx, sz) / 0.15));
           r = { x: c.position.x, z: c.position.z };
           for (let i = 0; i < n; i++) r = resolveMove(area, obstacles, r, { x: r.x + sx / n, z: r.z + sz / n }, 0.26, 1.7);

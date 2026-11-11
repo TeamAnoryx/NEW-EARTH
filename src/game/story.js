@@ -73,7 +73,7 @@ export class Story {
   wait(sec) { return this._guardBeat(new Promise((res) => this.timers.push({ t: this.time + sec, res }))); }
   say(name, text, hold) { return this._guardBeat(this.hud.say(name, text, hold)); }
   shot(pos, look, dur, ease) { return this._guardBeat(this.cam.shot(pos, look, dur, ease)); }
-  walk(f, pos, speed, state) { return this._guardBeat(f.walkTo(pos, speed, state)); }
+  walk(f, pos, speed, state, collide = false) { return this._guardBeat(f.walkTo(pos, speed, state, collide)); }
   tween(dur, fn, ease = (x) => x * x * (3 - 2 * x)) {
     return this._guardBeat(new Promise((res) => {
       const start = this.time;

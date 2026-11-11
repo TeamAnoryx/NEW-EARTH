@@ -47,6 +47,7 @@ export class Station {
     buildDeck(this);
     this._buildLights();
     this._buildParticles();
+    try { this._buildWallColliders(); } catch (e) { console.warn('Wall colliders could not be built:', e?.message || e); }
     try { this._batchStatic(); } catch (e) { console.warn('Static batching failed; drawing unbatched:', e?.message || e); } // an optimisation only — never block loading
   }
 
@@ -58,7 +59,8 @@ export class Station {
    * a moving sub-group (fans, pods, doors). The originals stay in place, hidden, as camera-collision
    * proxies, so nothing else changes.
    */
-  _batchStatic() {
+  /** Objects the game holds a reference to (doors, panels, screens...): these may move or hide. */
+  _referenced() {
     const keep = new Set();
     const scan = (v, depth) => {
       if (!v || depth > 3) return;
@@ -66,7 +68,39 @@ export class Station {
       if (Array.isArray(v)) { v.forEach((x) => scan(x, depth + 1)); return; }
       if (typeof v === 'object' && v.constructor === Object) Object.values(v).forEach((x) => scan(x, depth + 1));
     };
-    for (const [k, v] of Object.entries(this)) if (!['root', 'scene', 'camColliders', 'quarters', 'corridor', 'duct', 'storage', 'hallway', 'deck'].includes(k)) scan(v, 0);
+    for (const [k, v] of Object.entries(this)) if (!['root', 'scene', 'camColliders', 'quarters', 'corridor', 'duct', 'storage', 'hallway', 'deck', 'obstacles'].includes(k)) scan(v, 0);
+    return keep;
+  }
+
+  /**
+   * Physical walls. Every static wall / panel / fixture the camera collides with becomes a
+   * collision box for its area, so nothing can walk (or look) through geometry even where a
+   * walkable rectangle runs right up to — or slightly past — a wall. Moving or referenced
+   * objects (doors, grates, panels) are left to their own door logic.
+   */
+  _buildWallColliders() {
+    const keep = this._referenced();
+    const map = { Q: [this.quarters, this.corridor], D: [this.duct], S: [this.storage, this.hallway], C: [this.deck, this.storage, this.hallway] };
+    const box = new THREE.Box3();
+    this.root.updateMatrixWorld(true);
+    let n = 0;
+    for (const [area, groups] of Object.entries(map)) {
+      const list = (this.obstacles[area] ||= []);
+      for (const m of this.camColliders) {
+        if (!groups.includes(m.parent) || keep.has(m) || !m.geometry) continue;
+        box.setFromObject(m);
+        if (box.isEmpty()) continue;
+        const sx = box.max.x - box.min.x, sz = box.max.z - box.min.z;
+        if (sx > 40 || sz > 40) continue; // skybox / huge shells
+        list.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, minY: box.min.y, maxY: box.max.y, wall: true });
+        n++;
+      }
+    }
+    this.wallColliderCount = n;
+  }
+
+  _batchStatic() {
+    const keep = this._referenced();
     let before = 0, after = 0;
     for (const area of [this.quarters, this.corridor, this.duct, this.storage, this.hallway, this.deck]) {
       if (!area) continue;

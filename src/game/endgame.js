@@ -85,7 +85,7 @@ export function installEndgame(Story, { V, saveProgress, saveResume }) {
     f.active = false;
     while (A.queue[who].length) {
       const id = A.queue[who][0], d = A.defs[id];
-      await this.walk(f, d.pos, 2.6);
+      await this.walk(f, d.pos, 2.6, null, true); // gameplay walk: walls and consoles are solid
       ch.yaw = d.face; ch.reachTarget = 1; this.audio.uiSound('press');
       await this.wait(d.time ?? 2.4);
       ch.reachTarget = 0;

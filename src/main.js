@@ -545,6 +545,7 @@ class Game {
 
 const game = new Game();
 window.__game = game; // handy for debugging from the console
+window.__AREAS = AREAS; // walkable-space data (collision audits)
 const intro = new Intro({ audio: game.audio, isTouch: game.isTouch });
 window.__intro = intro; // debugging handle
 game.intro = intro;
