@@ -146,7 +146,7 @@ export function installEndgame(Story, { V, saveProgress, saveResume }) {
     this._deckSetup({ blackout: true, ctrlPower: true, alarm: true, ctrlClosed: true, bayOpen: false, bayZombies: false });
     this._endgameWorld({ level: 3 });
     // the horde gathers at the control-room door
-    this.zombies.forEach((z, i) => { if (i < 9) { z.c.root.position.set(25 + (i % 3) * 0.9, -4.6, -1 + Math.floor(i / 3) * 0.9); z.mode = 'hunt'; z.huntT = 0; z.lostT = -999; z.groanT = Math.random() * 2; z.huntSpeed = 2.4; } });
+    this.zombies.forEach((z, i) => { if (i < 9) { z.c.root.position.set(25 + (i % 3) * 0.9, -4.6, -1 + Math.floor(i / 3) * 0.9); z.mode = 'hunt'; z.huntT = 0; z.lostT = -999; z.groanT = Math.random() * 2; z.huntSpeed = 3.6; } });
     this._placeCrew('C', [33.0, 0.6, -Math.PI / 2], [32.6, 2.0, -Math.PI / 2], [32.4, -1.6, -Math.PI / 2]);
     if (!this.inventory?.length) ['Plasma cutter', 'EVA vests', 'Med-kit'].forEach((n) => this.addItem(n));
     this.setTasks('LEVEL 3 · LOCKDOWN', L3_TASKS);
@@ -261,7 +261,7 @@ export function installEndgame(Story, { V, saveProgress, saveResume }) {
     this.audio.impact(V(28, -3.5, 0), 1, true); this.audio.scream(V(27, -3.5, 0)); this.cam.shake(0.06);
     this.hud.timer(0, false);
     this.hud.toast('THE DOOR IS DOWN', 2);
-    this.zombies.slice(0, 9).forEach((z, i) => { z.huntSpeed = 2.0 + (i % 3) * 0.25; z.mode = 'hunt'; z.lostT = -999; });
+    this.zombies.slice(0, 9).forEach((z, i) => { z.huntSpeed = 3.0 + (i % 3) * 0.35; z.mode = 'hunt'; z.lostT = -999; });
   };
 
   // ======================================================================= LEVEL 4 · NEW EARTH

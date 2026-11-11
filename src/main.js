@@ -10,6 +10,7 @@ import { createEarth, createStars, createSun, createStationExterior } from './wo
 import { Story } from './game/story.js';
 import { TouchControls, isTouch } from './ui/touch.js';
 import { Intro } from './intro/intro.js';
+import { buildShip, playEndingFilm } from './game/finale.js';
 import { CREDITS, WORDMARK_SVG } from './intro/brand.js';
 import { detectTier, FrameGovernor } from './engine/perf.js';
 import { loadProgress, loadCleared, loadResume, LEVELS, BEAT_LEVEL, markPlayed } from './game/progress.js';
@@ -273,42 +274,46 @@ class Game {
   }
 
   /** Ending: the escape pod pulls away from HELIOS-7 over a dark Earth. */
+  /** Ending: ARES-1 leaves Helios-7 and Earth (3D), then the image film on Mars, then the console. */
   async playFinale() {
     const s = this.titleScene, cam = this.titleCam;
     this.mode = 'finale';
     this.hud.show(false); this.touch?.show(false); this.hud.cinematic(false);
     this.renderer.renderPass.scene = s; this.renderer.renderPass.camera = cam;
     cam.clearViewOffset();
-    const pod = new THREE.Group();
-    const shell = new THREE.Mesh(new THREE.CapsuleGeometry(1.1, 1.6, 10, 20), new THREE.MeshStandardMaterial({ color: 0xd9e2ea, metalness: 1, roughness: 0.25 }));
-    shell.rotation.z = Math.PI / 2; pod.add(shell);
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.2, 16, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 2.4, 3.2), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
-    flame.rotation.z = Math.PI / 2; flame.position.x = -2.6; pod.add(flame);
-    s.add(pod);
+    const ship = buildShip(); ship.scale.setScalar(1.7); s.add(ship);
     const { earth, stars, st } = this._title;
-    let t = 0;
-    this._finaleTick = (dt) => {
-      t += dt;
+    // away from Earth (which sits far below) and out past the station
+    const dir = new THREE.Vector3(0.62, 0.3, 0.72).normalize();
+    ship.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+    const start = new THREE.Vector3(30, 6, 22);
+    const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    // three-quarter rear view: engines glowing, station and Earth behind the ship as it leaves
+    const camFrom = start.clone().addScaledVector(side, -26).addScaledVector(dir, -22).add(new THREE.Vector3(0, 9, 0));
+    const camTo = camFrom.clone().addScaledVector(dir, 14).add(new THREE.Vector3(0, 4, 0));
+    const t0 = performance.now();
+    this._finaleTick = () => {
+      const t = (performance.now() - t0) / 1000; // wall clock: same flight on any frame rate
       earth.userData.update(this.t, cam); stars.userData.update(this.t); st.userData.update(this.t);
-      const k = Math.min(1, t / 14);
-      pod.position.set(44 + k * 160, 2 + k * 30, 10 - k * 120);
-      pod.rotation.set(0, 0.6, 0.2 + Math.sin(t * 2) * 0.02);
-      flame.scale.setScalar(0.8 + Math.random() * 0.4);
-      const camPos = new THREE.Vector3(70 + k * 60, 18 + k * 20, 70 - k * 40);
-      cam.position.lerp(camPos, 1 - Math.exp(-dt * 2));
-      cam.lookAt(pod.position.clone().lerp(new THREE.Vector3(0, -10, 0), 0.35 * (1 - k)));
+      const dist = 1.0 * t * t + 3.2 * t; // pulls away, ever faster
+      ship.position.copy(start).addScaledVector(dir, dist);
+      ship.position.y += Math.sin(t * 1.4) * 0.15;
+      ship.userData.update(t, Math.min(1, 0.45 + t * 0.35));
+      const k = Math.min(1, t / 9), e = k * k * (3 - 2 * k);
+      cam.position.lerpVectors(camFrom, camTo, e);
+      const look = ship.position.clone().lerp(new THREE.Vector3(0, -95, -60), 0.04 + 0.1 * e); // a little low, so Earth's limb sits in the lower frame
+      cam.lookAt(look);
     };
-    cam.position.set(70, 18, 70);
+    cam.position.copy(camFrom); cam.lookAt(ship.position);
     this.audio.startMusic('calm');
-    await this.hud.fade(0, 1.2);
-    await new Promise((r) => setTimeout(r, 3500));
-    await this.hud.chapter('ARES-1 IS AWAY', 3);
-    await this.hud.chapter('SIX MONTHS TO MARS.\nTHE GENESIS RESEARCH IS SAFE.', 3.5);
-    await this.hud.chapter('ON MARS, A NEW EARTH IS WAITING.', 3.2);
-    await this.hud.chapter('A CREATIVE EFFORT FROM ANORYX', 3);
+    this.audio.whoosh?.(4, true, 0.35);
+    await this.hud.fade(0, 1.0);
+    await new Promise((r) => setTimeout(r, 8500));
     await this.hud.fade(1, 1.2);
-    s.remove(pod); shell.geometry.dispose(); flame.geometry.dispose();
     this._finaleTick = null;
+    s.remove(ship); ship.userData.dispose();
+    this.mode = 'finale-film';
+    await playEndingFilm({ audio: this.audio });
     this.audio.stopMusic(1);
     this.toTitle(false, 1.2);
   }
@@ -461,7 +466,7 @@ class Game {
     this.timer.update(ts);
     const raw = this.timer.getDelta();
     const dt = Math.min(0.05, raw);
-    if (this.mode === 'boot') return; // the intro owns the screen until the console appears
+    if (this.mode === 'boot' || this.mode === 'finale-film') return; // the intro / ending film owns the screen
     if (this.mode === 'finale') { this._finaleTick?.(dt); this.input.endFrame(); this.renderer.render(this.t); return; }
     if (this.mode === 'title' || this.mode === 'play' || this.mode === 'dead') this.governor.sample(raw);
     this.t += dt;

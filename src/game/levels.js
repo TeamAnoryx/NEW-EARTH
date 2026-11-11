@@ -116,7 +116,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
       const lost = d > 9 && heard < 0.15;
       z.lostT = lost ? z.lostT + dt : 0;
       if (z.lostT > 3.5) { z.mode = 'patrol'; z.susp = 0.4; z.turned = false; this.hud.toast('…IT LOST YOU', 1.6); return; }
-      this._moveZombie(z, max.x, max.z, z.huntSpeed ?? 2.9, 'zRun', dt);
+      this._moveZombie(z, max.x, max.z, z.huntSpeed ?? 4.3, 'zRun', dt);
       if (d < 0.8 && this.player.enabled !== null) this.g.die(this.darkness ? 'They found you in the dark.' : 'You were caught.');
       z.groanT -= dt; if (z.groanT <= 0) { z.groanT = 1.5 + Math.random() * 2; this.audio.groan(pos, 1); }
     }

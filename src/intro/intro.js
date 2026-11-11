@@ -26,6 +26,7 @@ export class Intro {
     this.root = document.createElement('div');
     this.root.id = 'intro';
     this.root.innerHTML = `
+      <div class="in-begin"><div class="ib-mark">${GAME_MARK}</div><button class="ib-btn" type="button"><span class="in-pulse"></span>TAP TO BEGIN</button><div class="ib-sub">Opens in full screen · sound on</div></div>
       <div class="in-sting" aria-hidden="true">
         <div class="st-mark">${GAME_MARK}</div>
         <div class="st-under">
@@ -194,9 +195,34 @@ export class Intro {
    * NEW EARTH mark draws itself in 3 s → "AN ANORYX CREATION" → fades (1.5 s) → ANORYX lockup
    * holds 2 s → the tap-to-enter page. Returning players can tap to skip it.
    */
+  /**
+   * Browsers only allow full screen (and sound) from a tap/click, so the very first screen asks for
+   * one; the logo ident then plays in real full screen. iPhone Safari has no full-screen API for
+   * pages — there it plays full-viewport (or truly full screen when added to the Home Screen).
+   */
+  _waitForBegin() {
+    const box = $('.in-begin', this.root);
+    return new Promise((resolve) => {
+      const go = (e) => {
+        if (e.type === 'keydown' && !['Enter', ' ', 'Spacebar'].includes(e.key)) return;
+        e.preventDefault?.();
+        this._fullscreen();               // must run inside the gesture — before any await
+        this.audio.init();
+        this._unlockLocalAudio();
+        box.removeEventListener('pointerup', go); window.removeEventListener('keydown', go);
+        box.classList.add('leave');
+        setTimeout(() => box.remove(), 700);
+        resolve();
+      };
+      box.addEventListener('pointerup', go);
+      window.addEventListener('keydown', go);
+    });
+  }
+
   async _sting() {
     const st = $('.in-sting', this.root), gate = $('.in-gate', this.root);
     gate.classList.add('pre');
+    await this._waitForBegin();
     let skip = null;
     const skipped = new Promise((r) => (skip = r));
     const onTap = () => { if (hasPlayed()) skip('skip'); };
@@ -206,9 +232,11 @@ export class Intro {
       // start once the page has settled (heavy textures still loading would make the draw stutter)
       if (document.readyState !== 'complete') await Promise.race([new Promise((r) => window.addEventListener('load', r, { once: true })), wait(2500)]);
       await wait(250);
+      this.audio.whoosh?.(3, true, 0.18);
       if (await step('draw', 3000)) return;           // dots → rings → lines (3 s)
       if (await step('text', 1300)) return;           // "AN ANORYX CREATION"
       if (await step('text-out', 1500)) return;       // fades away in 1.5 s
+      this.audio.logoSting?.();
       if (await step('lock', 800 + 2000)) return;     // ANORYX lockup fades in, holds 2 s
     })();
     await Promise.race([seq, skipped]);
@@ -423,8 +451,7 @@ export class Intro {
       await this._whiteout();
     }
     await waitForBoot();
-    // leave full screen while the screen is still white so the jump in viewport size is hidden
-    await this._exitFullscreen();
+    // stay in full screen into the console (the ⤢ button there toggles it)
     await wait(120);
     try { beforeReveal?.(); } catch (e) { console.error(e); }
     await wait(80);

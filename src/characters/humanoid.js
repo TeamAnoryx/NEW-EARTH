@@ -527,7 +527,10 @@ export class Humanoid {
     this.time += dt;
     const t = this.time;
     // gait phase
-    const stride = this.state === 'run' || this.state === 'zRun' ? 2.4 : this.state === 'crawl' ? 0.9 : this.state === 'crouchWalk' ? 1.0 : this.state === 'zWalk' ? 1.1 : 1.45;
+    const st = this.state;
+    const [base, ref] = st === 'run' || st === 'zRun' ? [2.4, 4.6] : st === 'crawl' ? [0.9, 1.1] : st === 'crouchWalk' ? [1.0, 1.35] : st === 'zWalk' ? [1.1, 0.8] : [1.45, 2.1];
+    // above the reference speed the stride lengthens (cadence ∝ √speed) — fast but natural, never a leg blur
+    const stride = base * Math.max(1, Math.sqrt(this.speed / ref));
     this.phase += (this.speed / stride) * TAU * dt;
     // footstep callbacks
     const sgn = Math.sign(Math.sin(this.phase));

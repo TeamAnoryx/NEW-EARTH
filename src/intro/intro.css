@@ -326,3 +326,15 @@
   .gate-logo { font-size: 12px; }
   .st-mark { width: 40vmin; }
 }
+
+/* first screen: one tap → full screen + sound, then the ident */
+.in-begin { position: absolute; inset: 0; z-index: 6; display: grid; place-content: center; justify-items: center; gap: 22px; cursor: pointer;
+  background: radial-gradient(ellipse 80% 70% at 50% 45%, #0b2034 0%, #050b14 55%, #000 100%); transition: opacity .6s ease; }
+.in-begin.leave { opacity: 0; pointer-events: none; }
+.ib-mark { width: clamp(90px, 20vmin, 160px); color: #eef8ff; opacity: .5; animation: floaty 4s ease-in-out infinite; }
+.ib-mark svg { width: 100%; height: auto; display: block; }
+.ib-mark .ne-ring, .ib-mark .ne-line { stroke-dashoffset: 0; }
+.ib-mark .ne-dot { opacity: 1; transform: none; }
+.ib-btn { display: inline-flex; align-items: center; gap: 12px; padding: 14px 30px; border-radius: 999px; border: 1px solid rgba(95, 243, 255, .55); background: rgba(95, 243, 255, .08);
+  color: #e8f4ff; font: 600 13px var(--mono); letter-spacing: .32em; cursor: pointer; }
+.ib-sub { font: 11px var(--mono); letter-spacing: .2em; color: #8aa3b8; }

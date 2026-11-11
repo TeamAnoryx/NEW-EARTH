@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { AREAS } from '../world/station.js';
 
+/** Player speeds (m/s). Fast and fluid; the gait stride stretches with speed so legs never blur. */
+export const SPEED = { crawl: 1.9, crouch: 2.5, walk: 3.4, sprint: 6.6 };
+
 const RADIUS = 0.28;
 
 /** Circle-vs-AABB push out + walkable-region constraint (union of rectangles, already shrunk by radius). */
@@ -62,11 +65,11 @@ export class PlayerController {
   _step() {
     const s = this.char.speed;
     // crawling on deck plating is silent (zero noise); only the metal duct clanks
-    const loud = this.mode === 'crawl' ? (this.area === 'D' ? 0.12 : 0) : this.mode === 'crouch' ? 0.06 : s > 3 ? 1.0 : 0.42;
+    const loud = this.mode === 'crawl' ? (this.area === 'D' ? 0.12 : 0) : this.mode === 'crouch' ? 0.06 : s > 4.8 ? 1.0 : 0.42;
     this.noise = Math.max(this.noise, loud);
     const p = this.char.position;
     if (this.mode === 'crawl') { if (this.area === 'D' && Math.random() < 0.5) this.audio.ductClank(p); }
-    else this.audio.footstep(p, this.mode === 'crouch' ? 0.12 : s > 3 ? 1.0 : 0.5, true);
+    else this.audio.footstep(p, this.mode === 'crouch' ? 0.12 : s > 4.8 ? 1.0 : 0.5, true);
   }
 
   get height() { return this.mode === 'crawl' ? 0.7 : this.mode === 'crouch' ? 1.2 : 1.8; }
@@ -93,7 +96,7 @@ export class PlayerController {
     let target = 0;
     if (len > 0) {
       const l2 = Math.hypot(mx, mz); mx /= l2; mz /= l2;
-      target = (this.mode === 'crawl' ? 1.1 : this.mode === 'crouch' ? 1.35 : sprint ? 4.6 : 2.1) * this.maxSpeedScale * analogScale;
+      target = (this.mode === 'crawl' ? SPEED.crawl : this.mode === 'crouch' ? SPEED.crouch : sprint ? SPEED.sprint : SPEED.walk) * this.maxSpeedScale * analogScale;
     }
     // camera-relative direction: forward = (sin yaw, cos yaw)
     const fy = this.camYaw;
@@ -101,7 +104,8 @@ export class PlayerController {
     const right = new THREE.Vector3(Math.cos(fy), 0, -Math.sin(fy)); // +X when yaw=0 → character's left; we use mx>0 for A (left)
     const dir = new THREE.Vector3().addScaledVector(fwd, mz).addScaledVector(right, mx);
     const desired = dir.multiplyScalar(target);
-    const accel = len > 0 ? 10 : 12;
+    // quick to get going, quick to settle — continuous, no sluggish ramp
+    const accel = len > 0 ? 15 : 18;
     this.vel.x += (desired.x - this.vel.x) * (1 - Math.exp(-accel * dt));
     this.vel.z += (desired.z - this.vel.z) * (1 - Math.exp(-accel * dt));
     const from = { x: c.position.x, z: c.position.z };
@@ -123,7 +127,7 @@ export class PlayerController {
     // animation state
     if (this.mode === 'crawl') c.setState('crawl', 5);
     else if (this.mode === 'crouch') c.setState(actual > 0.2 ? 'crouchWalk' : 'crouch', 7);
-    else c.setState(actual > 3.2 ? 'run' : actual > 0.25 ? 'walk' : 'idle', 7);
+    else c.setState(actual > SPEED.walk + 0.6 ? 'run' : actual > 0.25 ? 'walk' : 'idle', 7);
   }
 }
 
@@ -321,6 +325,6 @@ export class Follower {
     if (st) c.setState(st);
     else if (mode === 'crawl') c.setState('crawl', 5);
     else if (mode === 'crouch') c.setState(c.speed > 0.2 ? 'crouchWalk' : 'crouch', 7);
-    else c.setState(c.speed > 3.0 ? 'run' : c.speed > 0.2 ? 'walk' : 'idle', 7);
+    else c.setState(c.speed > SPEED.walk + 0.6 ? 'run' : c.speed > 0.2 ? 'walk' : 'idle', 7);
   }
 }

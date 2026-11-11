@@ -569,3 +569,35 @@ body.touch #keyhelp { display: none !important; }
 @media (max-width: 860px) { .kh-cols { grid-template-columns: 1fr 1fr; } }
 @media (max-height: 820px) { .kh-panel { padding: 16px 22px 14px; } .kh-head { margin-bottom: 10px; } .kh-head h2 { font-size: 20px; } .kh-row { padding: 2px 0; font-size: 12px; } .kh-cols section { padding: 10px 12px 8px; } .kh-foot { bottom: -14px; margin: 10px -22px -14px; padding: 10px 22px 12px; } }
 @media (max-height: 600px) { .kh-head p { display: none; } }
+
+/* ---------- Ending film ---------- */
+#finale-film { position: fixed; inset: 0; z-index: 60; background: #000; overflow: hidden; transition: opacity .8s ease; }
+#finale-film.out { opacity: 0; pointer-events: none; }
+.ff-stage { position: absolute; inset: 0; overflow: hidden; transition: filter 1.2s ease; }
+.ff-still { position: absolute; inset: 0; }
+.ff-still img { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; user-select: none; -webkit-user-drag: none; }
+.ff-black { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; z-index: 3; }
+#finale-film.blur .ff-stage { filter: blur(6px) brightness(.7); }
+.ff-bubble { --c: #5ff3ff; position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - 16px)) scale(.85); opacity: 0; max-width: min(340px, 60vw); padding: 10px 14px 12px; border-radius: 14px;
+  background: rgba(6, 14, 22, .88); border: 1px solid var(--c); box-shadow: 0 10px 30px rgba(0, 0, 0, .55), 0 0 18px color-mix(in srgb, var(--c) 30%, transparent); backdrop-filter: blur(6px);
+  transition: opacity .35s ease, transform .4s cubic-bezier(.2, .9, .25, 1.25); pointer-events: none; }
+.ff-bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; width: 16px; height: 16px; transform: translateX(-50%) rotate(45deg); background: rgba(6, 14, 22, .92); border-right: 1px solid var(--c); border-bottom: 1px solid var(--c); }
+.ff-bubble.show { opacity: 1; transform: translate(-50%, calc(-100% - 16px)) scale(1); }
+.ff-bubble.hide { opacity: 0; transform: translate(-50%, calc(-100% - 28px)) scale(.92); }
+.ff-bubble b { display: block; font: 700 10px var(--mono); letter-spacing: .3em; color: var(--c); margin-bottom: 4px; }
+.ff-bubble span { font-size: 15px; line-height: 1.4; color: #f1f7fb; }
+.ff-sign { position: absolute; inset: 0; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 22px; pointer-events: none; }
+.ff-ax { font-size: clamp(30px, 7vmin, 64px); color: #f4fbff; filter: drop-shadow(0 4px 24px rgba(0, 0, 0, .6)); }
+.ff-ax .ax-p, .ff-ax .ax-l { opacity: 0; }
+#finale-film.sign .ff-ax .ax-bar1 { animation: axBar .8s cubic-bezier(.2, .9, .2, 1) forwards; }
+#finale-film.sign .ff-ax .ax-bar2 { animation: axBar .8s .12s cubic-bezier(.2, .9, .2, 1) forwards; }
+#finale-film.sign .ff-ax .ax-leg { animation: axLeg .8s .3s cubic-bezier(.2, .9, .2, 1) forwards; }
+#finale-film.sign .ff-ax .ax-cross { animation: axCross .55s .6s cubic-bezier(.2, .9, .2, 1) forwards; }
+#finale-film.sign .ff-ax .ax-l { animation: axLetter .7s cubic-bezier(.2, .8, .2, 1) forwards; animation-delay: calc(var(--i) * 85ms + .45s); }
+.ff-line { font: 300 clamp(13px, 2.4vmin, 20px) var(--font); letter-spacing: .32em; padding-left: .32em; color: #e6f2fa; text-align: center; opacity: 0; transform: translateY(10px); filter: blur(4px); transition: all 1s ease; text-shadow: 0 2px 14px rgba(0, 0, 0, .8); }
+#finale-film.line .ff-line { opacity: 1; transform: none; filter: none; }
+.ff-skip { position: absolute; z-index: 4; top: calc(env(safe-area-inset-top) + 14px); right: calc(env(safe-area-inset-right) + 14px); display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .35); color: #dfe9f0; font: 700 10px var(--mono); letter-spacing: .25em; cursor: pointer; opacity: .7; }
+.ff-skip:hover { opacity: 1; }
+.ff-skip svg { width: 14px; height: 14px; fill: currentColor; }
+@media (max-height: 430px) { .ff-bubble span { font-size: 13px; } .ff-bubble { padding: 8px 11px 9px; } }
