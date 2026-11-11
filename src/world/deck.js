@@ -31,7 +31,7 @@ export function buildDeck(st) {
       [32.25, 33.75, -6.6, -5.4],      // docking section door
       [29.3, 36.7, -12.3, -6.3],       // docking bay
       [32.45, 33.55, -13.2, -12.0],    // airlock door
-      [29.3, 36.7, -15.7, -12.95],     // decompression chamber
+      [29.3, 36.7, -15.45, -12.95],    // decompression chamber (clear of the hatch ring and suit rack)
       [28.0, 29.6, -10.75, -9.75],     // cargo annex door
       [24.9, 28.6, -11.9, -8.6],       // cargo annex
     ],
@@ -87,7 +87,7 @@ export function buildDeck(st) {
   // control-room doors (spine side + bay side) — the spine door can be sealed
   st.ctrlDoor = st.box(0.16, 2.4, 3.0, wm(M.wallB, 2, 2.4), 28, Y0 + 1.2, 0, D);
   st.ctrlDoorObst = { minX: 27.8, maxX: 28.2, minZ: -1.5, maxZ: 1.5, minY: Y0, maxY: Y0 + 2.4 };
-  st.setCtrlDoor = (closed) => { st.ctrlDoor.position.z = closed ? 0 : 2.9; const i = obst.indexOf(st.ctrlDoorObst); if (closed && i < 0) obst.push(st.ctrlDoorObst); if (!closed && i >= 0) obst.splice(i, 1); };
+  st.setCtrlDoor = (closed) => { st.ctrlDoor.position.z = closed ? 0 : 3.05; const i = obst.indexOf(st.ctrlDoorObst); if (closed && i < 0) obst.push(st.ctrlDoorObst); if (!closed && i >= 0) obst.splice(i, 1); };
   st.bayDoor = st.box(1.6, 2.4, 0.16, wm(M.wallB, 1.6, 2.4), 33, Y0 + 1.2, -6.1, D);
   st.bayDoorObst = { minX: 32.2, maxX: 33.8, minZ: -6.3, maxZ: -5.9, minY: Y0, maxY: Y0 + 2.4 };
   st.setBayDoor = (open) => { st.bayDoor.position.x = 33 + (open ? 1.7 : 0); const i = obst.indexOf(st.bayDoorObst); if (!open && i < 0) obst.push(st.bayDoorObst); if (open && i >= 0) obst.splice(i, 1); };
@@ -212,6 +212,9 @@ export function buildDeck(st) {
   brk.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.8, 0.6), M.trim));
   st.breakerLever = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.32, 0.08), M.crateOrange); st.breakerLever.position.set(0.1, 0.12, 0); brk.add(st.breakerLever);
   st.breakerSpot = new THREE.Vector3(-5.2, Y0, 2.6);
+  // the breaker box sticks out of the storage wall (it moves with its lever, so it's not batched)
+  const brkObst = { minX: -6.05, maxX: -5.72, minZ: 2.22, maxZ: 2.98, minY: Y0 + 0.75, maxY: Y0 + 1.75 };
+  obst.push(brkObst); (st.obstacles.S ||= []).push(brkObst);
   st._stencilWall(D, 'DECK 3 MAIN', -5.98, Y0 + 1.85, 2.6, Math.PI / 2, 1.0);
   D.visible = false;
   return D;

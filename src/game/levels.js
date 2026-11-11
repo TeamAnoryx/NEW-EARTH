@@ -224,7 +224,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this.addInteract({ id: 'door2', pos: S.storagePanelPos, r: 1.0, text: 'Release the mag-lock', onUse: async () => {
       this.removeInteract('door2');
       this.audio.lock(V(6, -3.3, 1.5));
-      S.storageDoor.rate = 1; S.setStorageDoor(0.95);
+      S.storageDoor.rate = 1; S.setStorageDoor(1);
       this._storageDoorObstacle(false);
       this.completeTask('door2');
       S.guideLine.userData.show(true); S.guideFuse.userData.show(true);
@@ -254,7 +254,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this.zones = [];
     const restarting = this.area !== 'C' || !this.darkness;
     this._deckSetup({ blackout: true, ctrlPower: false, alarm: false, ctrlClosed: false, bayOpen: false, bayZombies: false });
-    this._storageDoorObstacle(false); S.setStorageDoor(0.95, true);
+    this._storageDoorObstacle(false); S.setStorageDoor(1, true);
     if (restarting || this.lead.position.x < 28) this._placeCrew('C', [29.4, 0, Math.PI / 2], [28.6, 0.6, Math.PI / 2], [28.6, -0.6, Math.PI / 2]);
     this.addItem('Aux fuse');
     ['breaker', 'door2', 'spine', 'fuse'].forEach((id) => { const t = this.taskList?.find((x) => x.id === id); if (t) t.done = true; });

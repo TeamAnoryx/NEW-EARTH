@@ -86,17 +86,31 @@ export class Station {
     let n = 0;
     for (const [area, groups] of Object.entries(map)) {
       const list = (this.obstacles[area] ||= []);
-      for (const m of this.camColliders) {
-        if (!groups.includes(m.parent) || keep.has(m) || !m.geometry) continue;
+      // every fixed, opaque piece sitting directly in the area — walls, pillars, trims, frames,
+      // racks — not only the camera-collision list (decorative trims were walk-through before)
+      const pieces = [];
+      for (const g of groups) for (const m of g?.children || []) pieces.push(m);
+      for (const m of pieces) {
+        if (!m.isMesh || m.isPoints || m.isLine || m.name === 'batched' || keep.has(m) || !m.geometry) continue;
+        const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+        if (!mat || mat.transparent || mat.isShaderMaterial) continue; // glass, decals, guide lines: no collision
         box.setFromObject(m);
         if (box.isEmpty()) continue;
         const sx = box.max.x - box.min.x, sz = box.max.z - box.min.z;
         if (sx > 40 || sz > 40) continue; // skybox / huge shells
+        const floorY = AREAS[area]?.floorY ?? 0;
+        if (box.max.y < floorY + 0.15) continue;                                   // floor trims / strips you step over
+        if (box.min.y > floorY + (area === 'D' ? 0.15 : 0.9)) continue;           // hanging cables, lamps, upper frames (duct: only what rests on its floor)
+        if (list.some((o) => o.wall && o.minX === box.min.x && o.maxX === box.max.x && o.minZ === box.min.z && o.maxZ === box.max.z)) continue;
         list.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, minY: box.min.y, maxY: box.max.y, wall: true });
         n++;
       }
     }
     this.wallColliderCount = n;
+    // the deck (area C) includes the storage room: its furniture must be solid there from the start
+    const C = (this.obstacles.C ||= []);
+    for (const o of this.obstacles.S || []) if (!C.includes(o)) C.push(o);
+    this._cHasStorage = true;
   }
 
   _batchStatic() {
