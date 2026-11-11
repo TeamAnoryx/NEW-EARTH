@@ -27,7 +27,7 @@ const CLUES = [
   [/^Crawl through the duct/i, 'THE DUCT',
     `Crawl along the duct past the grate. At the far end, ${USE} on "Drop into Storage C-7". Keep it slow — sound carries.`],
   [/^Ask Sean to close the door/i, 'SECURE THE DOOR',
-    'Tap the SWITCH button that appears, pick Sean or Anna, and play as them. Max is too far from the door.'],
+    'Tap SWITCH PLAYER (G on a keyboard), pick Sean or Anna, and play as them. Max is too far from the door.'],
   [/^Close and lock the door as/i, 'CLOSE IT SILENTLY',
     'Turn on CRAWL (X / CRAWL) so your steps make zero noise and creep to the door panel. HOLD E / USE to slide it shut slowly — watch the noise meter on the left.'],
   [/^Engage the mag-lock/i, 'LOCK IT',
@@ -55,13 +55,13 @@ const CLUES = [
 
   // ---- Level 3 · Lockdown
   [/^Seal the sections/i, 'SPLIT THE WORK',
-    `Tap ASSIGN TASK (bottom centre), give Sean and Anna a console each and tap ASSIGNED. Do the rest yourself: the two consoles facing the window, the panel by the south door, and the blast-door panel beside the door you came in through. Do the blast door early — the CONTROL DOOR bar is running out.`],
+    `Tap ASSIGN TASK (bottom centre, or press G), give Sean and Anna a console each and tap ASSIGNED. Do the rest yourself: the two consoles facing the window, the panel by the south door, and the blast-door panel beside the door you came in through. Do the blast door early — the CONTROL DOOR bar is running out.`],
   [/^Vent the oxygen/i, 'VENT THE AIR',
     `Walk to the glowing holo-table in the middle of the room and ${USE} on "Vent the oxygen".`],
 
   // ---- Level 4 · New Earth
   [/^Prepare for the journey/i, 'PREPARE ARES-1',
-    `Three jobs: supply crates in the corner by the vault, the fuel-transfer panel by the south door, and the Genesis vault (north wall). Tap ASSIGN TASK to hand two of them to Sean and Anna.`],
+    `Three jobs: supply crates in the corner by the vault, the fuel-transfer panel by the south door, and the Genesis vault (north wall). Tap ASSIGN TASK (or press G) to hand two of them to Sean and Anna.`],
   [/^Go to the docking section/i, 'THE DOCKING SECTION',
     `Go to the south door of the control room (DOCKING SECTION sign) and ${USE} on "Open the docking section door", then walk through.`],
   [/^Set the noise beacon/i, 'SET THE BAIT',

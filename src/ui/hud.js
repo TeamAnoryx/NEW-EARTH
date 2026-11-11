@@ -147,8 +147,9 @@ export class HUD {
       <span class="sw-face">${o.face ?? o.name[0]}</span><b>${o.name.toUpperCase()}</b><small>${o.role}</small></button>`).join('');
     box.classList.remove('hidden');
     this.audio.uiSound('open');
+    window.dispatchEvent(new Event('ne-panel-opened'));
     return new Promise((res) => {
-      const done = (v) => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); this.audio.uiSound(v ? 'play' : 'close'); res(v); };
+      const done = (v) => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); this.audio.uiSound(v ? 'play' : 'close'); window.dispatchEvent(new Event('ne-panel-closed')); res(v); };
       cards.querySelectorAll('.sw-card').forEach((b) => (b.onclick = () => done(b.dataset.name)));
       box.querySelector('.sw-cancel').onclick = () => done(null);
     });
@@ -183,8 +184,9 @@ export class HUD {
     })));
     go.disabled = true;
     box.classList.remove('hidden'); document.body.classList.add('focus-ui');
+    window.dispatchEvent(new Event('ne-panel-opened'));
     return new Promise((res) => {
-      const done = (v) => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); go.onclick = null; box.querySelector('.as-x').onclick = null; res(v); };
+      const done = (v) => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); go.onclick = null; box.querySelector('.as-x').onclick = null; window.dispatchEvent(new Event('ne-panel-closed')); res(v); };
       go.onclick = () => { this.audio.uiSound('play'); done(Object.entries(picks).filter(([, w]) => w).map(([id, who]) => ({ id, who }))); };
       box.querySelector('.as-x').onclick = () => { this.audio.uiSound('close'); done(null); };
     });

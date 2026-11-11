@@ -60,6 +60,9 @@ class Game {
     this.input.onEscape = () => this.onEscape();
     // desktop: the browser released the mouse (Esc) → pause, so a click on RESUME re-captures it
     window.addEventListener('keydown', (e) => { if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !$('keyhelp').classList.contains('hidden')) { e.preventDefault(); this.closeKeyHelp(); } });
+    // crew pickers (switch player / assign tasks / levels): free the mouse to click, capture it again after
+    window.addEventListener('ne-panel-opened', () => { if (!this.isTouch) this.input.exitLock(); });
+    window.addEventListener('ne-panel-closed', () => { if (!this.isTouch && this.mode === 'play') this.input.requestLock(); });
     this.input.onLockLost = () => { if (this.mode === 'play' && !this.tablet.open && !this.isTouch) this.pause(); };
     $('keyhint').addEventListener('click', (e) => { e.stopPropagation(); this.audio.uiSound('press'); this.openKeyHelp(); });
     $('keyhelp').querySelector('.kh-go').addEventListener('click', (e) => { e.stopPropagation(); this.audio.uiSound('play'); this.closeKeyHelp(); });
@@ -499,7 +502,13 @@ class Game {
         if (I.wasPressed('KeyJ')) this.hud.toggleTasks();
         if (I.wasPressed('KeyV')) this.story.toggleLookAround();
         if (I.wasPressed('KeyQ')) this.onTopbar('clue', document.querySelector('[data-tb="clue"]'));
-        if (I.wasPressed('KeyG') && !$('assignbar').classList.contains('hidden')) this.story.openAssign?.();
+        // G = crew key: assign tasks (Levels 3–4) or switch player (Levels 1–2), whichever this level offers
+        if (I.wasPressed('KeyG')) {
+          if (!$('assignbar').classList.contains('hidden')) this.story.openAssign?.();
+          else if (!$('switchbar').classList.contains('hidden')) $('switchbar').querySelector('.sw-open').click();
+          else if (this.story.switchAllowed && this.story.player.enabled) this.story.openSwitcher();
+          else this.hud.toast('NO CREW ACTION HERE', 1.4);
+        }
         if (I.wasPressed('KeyK', 'KeyH')) this.openKeyHelp();
         if (I.wasPressed('KeyP')) this.pause();
         // arrow keys turn (for players without a mouse / trackpad drag)
