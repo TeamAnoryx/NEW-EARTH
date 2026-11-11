@@ -50,10 +50,14 @@ export class Input {
     try {
       const p = this.canvas.requestPointerLock?.();
       if (p && p.catch) p.catch((e) => console.info('Pointer lock refused (click the game to retry):', e?.message || e));
-    } catch { /* pointer lock unavailable (e.g. iframe) */ }
+    } catch (e) { console.info('Pointer lock unavailable here (e.g. embedded page):', e?.message || e); }
   }
 
-  exitLock() { if (document.pointerLockElement) { this._intentionalExit = true; document.exitPointerLock(); } }
+  exitLock() {
+    if (!document.pointerLockElement) return;
+    this._intentionalExit = true;
+    try { document.exitPointerLock(); } catch (e) { this._intentionalExit = false; console.info('Could not release the mouse:', e?.message || e); }
+  }
 
   isDown(...codes) { return this.enabled && codes.some((c) => this.down.has(c)); }
   wasPressed(...codes) { return this.enabled && codes.some((c) => this.pressed.has(c)); }
