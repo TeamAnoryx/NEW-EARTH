@@ -4,10 +4,21 @@
  * Feeds the same Input object the keyboard uses, so gameplay code is input-agnostic.
  */
 /**
- * Phone/tablet = the PRIMARY pointer is a finger. Touch-screen laptops and desktops with a
- * touch panel have a mouse/trackpad as primary pointer and get the keyboard + mouse controls.
+ * Phone or tablet → touch controls. Desktop / laptop (even with a touch screen) → keyboard + mouse.
+ *
+ * The primary-pointer media query alone misreads tablets: an iPad with a trackpad or keyboard case,
+ * iPadOS in its default "desktop website" mode (it says it is a Mac), and Android tablets with a
+ * stylus (S Pen) all report a fine, hovering pointer. So the device itself is checked first.
  */
-export const isTouch = () => matchMedia('(pointer: coarse)').matches && !matchMedia('(hover: hover) and (pointer: fine)').matches;
+export function isTouch() {
+  const ua = navigator.userAgent || '';
+  const touchPoints = navigator.maxTouchPoints || 0;
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;                          // phones + tablets (Android tablets drop "Mobile", not "Android")
+  if (/Macintosh/i.test(ua) && touchPoints > 1) return true;                        // iPadOS posing as macOS (real Macs have no touch points)
+  if (navigator.userAgentData?.mobile) return true;                                 // Chromium's own phone/tablet flag
+  if (/Windows|CrOS|Linux|Macintosh/i.test(ua) && matchMedia('(any-pointer: fine)').matches) return false; // laptops/PCs with a mouse or trackpad, touch screen or not
+  return matchMedia('(pointer: coarse)').matches;                                   // anything else: trust the primary pointer
+}
 
 export class TouchControls {
   constructor(input, hooks = {}) {

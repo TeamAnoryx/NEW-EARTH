@@ -1,3 +1,5 @@
+import { isTouch } from '../ui/touch.js';
+
 /**
  * Device-aware quality: picks a starting tier from the GPU/device, then a frame-time governor
  * scales the render resolution (and bloom) every ~1.5 s so the game holds its frame rate on
@@ -6,7 +8,7 @@
 export function detectTier(glRenderer) {
   const nav = navigator;
   const mem = nav.deviceMemory || 4, cores = nav.hardwareConcurrency || 4;
-  const mobile = matchMedia('(pointer: coarse)').matches;
+  const mobile = isTouch();
   let gpu = '';
   try {
     const gl = glRenderer.getContext();
