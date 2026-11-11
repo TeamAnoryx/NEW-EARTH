@@ -23,7 +23,7 @@ function loadSettings() {
   try { return Object.assign(def, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
   catch { return def; }
 }
-function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* storage unavailable */ } }
+function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) { console.info('Settings not saved (storage unavailable):', e?.message || e); } }
 
 class Game {
   constructor() {

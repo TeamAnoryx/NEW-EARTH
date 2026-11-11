@@ -13,6 +13,7 @@ const CYAN = '#5ff3ff', RED = '#ff4b4b', AMBER = '#ffb547', GREEN = '#3dff8a', D
 function makeCanvas(w = W, h = H) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const g = c.getContext('2d');
+  if (!g) console.warn('LED wall: 2D canvas unavailable (low memory?) — screen stays blank.');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   return { c, g, tex };
 }
@@ -184,7 +185,11 @@ export function buildControlRoom(st, D, Y0) {
       }
       if (acc < 0.12 || power < 0.02) return; // ~8 fps repaint, nothing when dark
       acc = 0;
-      for (const s of screens) if (PAINT[s.kind]) { PAINT[s.kind](s.g, t, st.ledState); s.tex.needsUpdate = true; }
+      for (const s of screens) {
+        if (!s.g || !PAINT[s.kind]) continue;
+        try { PAINT[s.kind](s.g, t, st.ledState); s.tex.needsUpdate = true; }
+        catch (e) { console.warn(`LED wall "${s.kind}" paint failed; disabling it:`, e?.message || e); s.g = null; }
+      }
     },
   };
   return api;
