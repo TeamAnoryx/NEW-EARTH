@@ -202,7 +202,11 @@ export class Audio {
     const base = (import.meta.env?.BASE_URL ?? './');
     const p = fetch(`${base}music/${name}.mp3`)
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
-      .then((ab) => new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej)))
+      .then((ab) => {
+        // promise form (all current browsers); a corrupt file rejects here and is handled below
+        const p = this.ctx.decodeAudioData(ab);
+        return p && typeof p.then === 'function' ? p : new Promise((res, rej) => this.ctx.decodeAudioData(ab, res, rej));
+      })
       .catch((e) => { console.warn(`Music "${name}" unavailable, using synthesised fallback:`, e?.message || e); this._tracks.delete(name); return null; });
     this._tracks.set(name, p);
     // keep memory bounded on phones: at most 3 decoded tracks (+ the threat layer)

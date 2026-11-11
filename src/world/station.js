@@ -82,7 +82,8 @@ export class Station {
       }
       for (const list of groups.values()) {
         if (list.length < 2) continue;
-        const geos = list.map((m) => {
+        let geos;
+        try { geos = list.map((m) => {
           const g = m.geometry.clone();
           for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
           const n = g.attributes.position.count;
@@ -92,7 +93,7 @@ export class Station {
           g.morphAttributes = {};
           m.updateMatrix(); g.applyMatrix4(m.matrix);
           return g;
-        });
+        }); } catch (e) { console.warn('Static batching skipped for one material (prep failed):', e?.message || e); continue; }
         let geo = null;
         try { geo = mergeGeometries(geos, false); }
         catch (e) { console.warn('Static batching skipped for one material:', e?.message || e); }
@@ -691,13 +692,9 @@ export class Station {
     L.sKey.intensity = s || d ? 38 : 0;
     L.sHall.intensity = s || d ? 7 : 0;
     this.scene.environmentIntensity = q ? 0.1 : 0.06;
-    // a shadow-casting light re-renders the whole scene every frame even at intensity 0 —
-    // freeze the shadow maps of lights that are off here (biggest single frame-time saving)
-    for (const [l, on] of [[L.sun, q], [L.qKey, q], [L.sKey, s || d]]) {
-      if (!l?.shadow) continue;
-      if (on && !l.shadow.autoUpdate) l.shadow.needsUpdate = true;
-      l.shadow.autoUpdate = !!on;
-    }
+    // NOTE: shadow maps are kept live for every shadow-casting light. Freezing them (shadow.autoUpdate
+    // = false) left lights without a shadow map, and real GPUs then refused to draw every lit
+    // surface — only unlit objects (Earth, stars) appeared. Draw-call batching recovers the cost.
     if (area === 'C') {
       // deck lights follow the blackout / aux-power state; the control-room lamp reuses dFan
       L.hemi.intensity = this.blackout ? 0.012 : 0.08;
