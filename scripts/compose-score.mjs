@@ -178,8 +178,10 @@ function finish(T, name, { gain = 0.85, loop = true } = {}) {
     data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, sc(T.R[i] * g))) * 32767), 46 + i * 4);
   }
   const wav = join(TMP, `${name}.wav`), mp3 = join(OUT, `${name}.mp3`);
-  writeFileSync(wav, data);
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wav, '-c:a', 'libmp3lame', '-b:a', '112k', '-ar', '44100', mp3]);
+  try { writeFileSync(wav, data); }
+  catch (e) { throw new Error(`could not write ${wav}: ${e.message}`); }
+  try { execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wav, '-c:a', 'libmp3lame', '-b:a', '112k', '-ar', '44100', mp3], { stdio: ['ignore', 'inherit', 'inherit'] }); }
+  catch (e) { throw new Error(e.code === 'ENOENT' ? 'ffmpeg not found — install it and make sure it is on PATH' : `ffmpeg failed for ${name}: ${e.message}`); }
   console.log(`  ${name}.mp3  ${T.sec}s`);
 }
 
@@ -271,12 +273,20 @@ const TRACKS = {
   },
 };
 
-mkdirSync(TMP, { recursive: true });
 const only = process.argv.slice(2);
-console.log('Rendering score →', OUT);
-for (const [name, fn] of Object.entries(TRACKS)) {
-  if (only.length && !only.includes(name)) continue;
-  seed = 1 + name.length * 7919;
-  finish(fn(), name);
+const unknown = only.filter((n) => !(n in TRACKS));
+if (unknown.length) { console.error(`Unknown track(s): ${unknown.join(', ')}. Available: ${Object.keys(TRACKS).join(', ')}`); process.exit(2); }
+try {
+  mkdirSync(TMP, { recursive: true });
+  console.log('Rendering score →', OUT);
+  for (const [name, fn] of Object.entries(TRACKS)) {
+    if (only.length && !only.includes(name)) continue;
+    seed = 1 + name.length * 7919;
+    finish(fn(), name);
+  }
+} catch (e) {
+  console.error(`Score render failed: ${e.message}`);
+  process.exitCode = 1;
+} finally {
+  rmSync(TMP, { recursive: true, force: true });
 }
-rmSync(TMP, { recursive: true, force: true });

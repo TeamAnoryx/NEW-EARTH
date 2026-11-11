@@ -224,6 +224,10 @@ export class Audio {
     const up = this._curve(true), down = this._curve(false);
     const play = (t, first) => {
       if (!h.alive) return;
+      try { schedule(Math.max(t, c.currentTime + 0.01), first); }
+      catch (e) { console.warn('Music loop scheduling failed; stopping this track:', e?.message || e); h.alive = false; }
+    };
+    const schedule = (t, first) => {
       const src = c.createBufferSource(); src.buffer = buf;
       const g = c.createGain(); src.connect(g).connect(out);
       const end = t + buf.duration;
@@ -237,11 +241,15 @@ export class Audio {
     };
     play(c.currentTime + 0.03, true);
     h.stop = (fade = 1.5) => {
-      if (!h.alive) return; h.alive = false; clearTimeout(h.timer);
-      out.gain.cancelScheduledValues(c.currentTime); out.gain.setTargetAtTime(0.0001, c.currentTime, Math.max(0.05, fade / 3));
+      if (!h.alive && !h.srcs.size) return; h.alive = false; clearTimeout(h.timer);
+      try { out.gain.cancelScheduledValues(c.currentTime); out.gain.setTargetAtTime(0.0001, c.currentTime, Math.max(0.05, fade / 3)); }
+      catch (e) { console.warn('Music fade-out failed:', e?.message || e); }
       setTimeout(() => { h.srcs.forEach((s) => { try { s.stop(); } catch (e) { console.info('music source already stopped', e?.message || e); } }); out.disconnect(); }, fade * 1000 + 400);
     };
-    h.level = (v, time = 0.5) => out.gain.setTargetAtTime(Math.max(0.0001, v), c.currentTime, time / 3);
+    h.level = (v, time = 0.5) => {
+      try { out.gain.setTargetAtTime(Math.max(0.0001, v), c.currentTime, time / 3); }
+      catch (e) { console.warn('Music level change failed:', e?.message || e); }
+    };
     return h;
   }
 
