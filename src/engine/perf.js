@@ -14,7 +14,7 @@ export function detectTier(glRenderer) {
     const gl = glRenderer.getContext();
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
     gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-  } catch { /* privacy-restricted browsers */ }
+  } catch (e) { console.debug('privacy-restricted browsers:', e?.message || e); }
   const g = String(gpu);
   if (/SwiftShader|llvmpipe|Software|Mali-[2-4]\d\d|Mali-T|Adreno \(TM\) [2-5]\d\d|PowerVR SGX|PowerVR Rogue GE/i.test(g) || mem <= 2) return { tier: 'low', gpu: g };
   if (mobile) {

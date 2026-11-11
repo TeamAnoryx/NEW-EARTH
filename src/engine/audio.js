@@ -357,7 +357,7 @@ export class Audio {
     delete this._loops.music;
     if (l.file) { l.file.stop(fade); return; }
     l.out.gain.setTargetAtTime(0, this.now, fade / 3);
-    setTimeout(() => l.nodes.forEach((n) => { try { n.stop(); } catch { /* already stopped */ } }), fade * 1000 + 500);
+    setTimeout(() => l.nodes.forEach((n) => { try { n.stop(); } catch (e) { console.debug('already stopped:', e?.message || e); } }), fade * 1000 + 500);
   }
 
   // Heartbeat loop for stealth
@@ -706,7 +706,7 @@ export class Audio {
     if (m.file) { m.file.stop(fade); return; }
     if (m.pending) return;
     m.out.gain.setTargetAtTime(0.0001, this.now, fade / 4);
-    setTimeout(() => { m.nodes.forEach((n) => { try { n.stop(); } catch { /* stopped */ } }); m.out.disconnect(); }, fade * 1000 + 600);
+    setTimeout(() => { m.nodes.forEach((n) => { try { n.stop(); } catch (e) { console.debug('stopped:', e?.message || e); } }); m.out.disconnect(); }, fade * 1000 + 600);
   }
 
   setMusicMuted(muted) {
@@ -724,7 +724,7 @@ export class Audio {
       if (l.file) { l.file.stop(0.6); return; }
       if (l.iv) clearInterval(l.iv);
       l.out.gain.setTargetAtTime(0, this.now, 0.2);
-      setTimeout(() => l.nodes.forEach((n) => { try { n.stop(); } catch { /* noop */ } }), 1500);
+      setTimeout(() => l.nodes.forEach((n) => { try { n.stop(); } catch (e) { console.debug('noop:', e?.message || e); } }), 1500);
     });
     this._loops = {};
     this.setHeartbeat(0);

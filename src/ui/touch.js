@@ -57,7 +57,7 @@ export class TouchControls {
     this.show(false);
   }
 
-  _buzz(ms = 12) { try { navigator.vibrate?.(ms); } catch { /* unsupported */ } }
+  _buzz(ms = 12) { try { navigator.vibrate?.(ms); } catch (e) { console.debug('unsupported:', e?.message || e); } }
 
   show(v) { this.root.classList.toggle('hidden', !v); }
   setActionHighlight(on, label) {

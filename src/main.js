@@ -98,7 +98,7 @@ class Game {
     await step(84, 'COMPILING SHADERS…');
     this.applySettings();
     // warm up both scenes so the first frames don't hitch
-    try { this.renderer.renderer.compile(this.renderer.scene, this.renderer.camera); this.renderer.renderer.compile(this.titleScene, this.titleCam); } catch { /* compile is an optimisation only */ }
+    try { this.renderer.renderer.compile(this.renderer.scene, this.renderer.camera); this.renderer.renderer.compile(this.titleScene, this.titleCam); } catch (e) { console.debug('compile is an optimisation only:', e?.message || e); }
     await step(100, 'SYSTEMS NOMINAL');
     this.loop();
   }

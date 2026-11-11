@@ -299,7 +299,7 @@ export class Intro {
     clearInterval(this._volIv);
     this._volIv = setInterval(() => {
       const k = Math.min(1, (performance.now() - start) / ms);
-      try { m.setVolume(Math.round(from + (to - from) * k)); } catch { /* player gone */ }
+      try { m.setVolume(Math.round(from + (to - from) * k)); } catch (e) { console.debug('player gone:', e?.message || e); }
       if (k >= 1) clearInterval(this._volIv);
     }, 60);
   }
@@ -314,10 +314,10 @@ export class Intro {
     if (!players?.video) return this._fallbackFootage(scene);
     const { video, videoB, music } = players;
     // only show the footage once it is really playing — never YouTube's own error card
-    try { video.seekTo(SEGMENTS[0][0], true); video.playVideo(); } catch { /* handled below */ }
-    if (!(await waitUntilPlaying(video, 6000))) { try { video.stopVideo(); music?.stopVideo(); } catch { /* ignore */ } return this._fallbackFootage(scene); }
+    try { video.seekTo(SEGMENTS[0][0], true); video.playVideo(); } catch (e) { console.debug('handled below:', e?.message || e); }
+    if (!(await waitUntilPlaying(video, 6000))) { try { video.stopVideo(); music?.stopVideo(); } catch (e) { console.debug('ignore:', e?.message || e); } return this._fallbackFootage(scene); }
     if (this.skipped) return;
-    if (music && !music.__failed) { try { music.setVolume(0); music.seekTo(MUSIC_START, true); music.playVideo(); this._rampMusic(85, 2500); } catch { /* ignore */ } }
+    if (music && !music.__failed) { try { music.setVolume(0); music.seekTo(MUSIC_START, true); music.playVideo(); this._rampMusic(85, 2500); } catch (e) { console.debug('ignore:', e?.message || e); } }
     // if the music iframe is refused sound (some iOS versions), use the synth score instead
     setTimeout(() => { if (!this.skipped && (!music || music.__failed || music.getPlayerState?.() !== 1)) { this._synthMusic = true; this.audio.startMusic('calm'); } }, 3000);
     vEl.classList.add('on');
@@ -382,7 +382,7 @@ export class Intro {
     this.audio.whoosh(2, true, 0.3);
     await wait(2050);
     $('.in-stage', this.root).classList.add('hidden');
-    try { this.music?.pauseVideo(); this.video?.pauseVideo(); } catch { /* ignore */ }
+    try { this.music?.pauseVideo(); this.video?.pauseVideo(); } catch (e) { console.debug('ignore:', e?.message || e); }
     const pw = $('.in-pw', this.root);
     pw.classList.add('show');
     await wait(450);
