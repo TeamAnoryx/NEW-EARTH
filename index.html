@@ -47,7 +47,7 @@
           <button data-action="music" class="btn-icon btn-toggle on" type="button" aria-label="Music" aria-pressed="true"><svg viewBox="0 0 24 24"><path class="ic-on" d="M11 5 6 9H3v6h3l5 4V5Zm4.5 3.5a5 5 0 0 1 0 7M18.4 6a8.5 8.5 0 0 1 0 12"/><path class="ic-off" d="M11 5 6 9H3v6h3l5 4V5Zm5 5 5 5m0-5-5 5"/></svg><span>Music</span></button>
         </div>
       </nav>
-      <div class="title-foot">A GAME BY <b>ANORYX</b> · SINGLE PLAYER</div>
+      <div class="title-foot">A CREATIVE EFFORT FROM <b>ANORYX</b> · SINGLE PLAYER</div>
     </div>
     <button class="btn-fs" data-action="fullscreen" type="button" aria-label="Toggle full screen"><svg viewBox="0 0 24 24"><path class="ic-expand" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="ic-shrink" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
   </div>
@@ -79,9 +79,9 @@
   <div id="panel-credits" class="panel hidden">
     <h2>CREDITS</h2>
     <table>
-      <tr><td>Game</td><td>NEW EARTH — Prologue: Outbreak</td></tr>
+      <tr><td>Game</td><td>NEW EARTH</td></tr>
       <tr><td>Studio</td><td>ANORYX</td></tr>
-      <tr><td>Creative idea</td><td id="cred-idea"></td></tr>
+      <tr><td>Credit</td><td id="cred-idea"></td></tr>
       <tr><td>Intro footage</td><td>“Relaxing Space Music | Cosmos” — SERENE (YouTube, embedded)</td></tr>
       <tr><td>Intro music</td><td>“Space Meditation” — MokkaMusic (YouTube, embedded)</td></tr>
       <tr><td>Earth imagery</td><td>three.js example textures (see CREDITS.md)</td></tr>
@@ -120,6 +120,15 @@
     </div>
     <button id="lookbtn" class="hidden" type="button" aria-label="Look around"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>LOOK AROUND</span></button>
     <div id="switchbar" class="hidden"><button class="sw-open" type="button"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg><span>SWITCH PLAYER</span></button></div>
+    <div id="assignbar" class="hidden"><button class="as-open" type="button"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8v6M22 11h-6"/></svg><span>ASSIGN TASK</span></button></div>
+    <div id="assigner" class="hidden" role="dialog" aria-label="Assign tasks">
+      <div class="as-panel">
+        <div class="as-head"><span>ASSIGN TASKS TO YOUR CREW</span><button class="as-x" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div class="as-hint">Pick who does each job. They walk over and do it while you work on something else.</div>
+        <ul class="as-list"></ul>
+        <button class="as-go" type="button" disabled>ASSIGNED ✓</button>
+      </div>
+    </div>
     <div id="switcher" class="hidden" role="dialog" aria-label="Switch player">
       <div class="sw-title" id="sw-title">TAKE CONTROL OF</div>
       <div class="sw-cards" id="sw-cards"></div>
@@ -131,7 +140,7 @@
     </div>
     <div id="timer" class="hidden"><div class="timer-label" id="timer-label">DOOR INTEGRITY</div><div class="timer-bar"><i id="timer-fill"></i></div></div>
     <div id="crosshair"></div>
-    <div id="subtitle" class="hidden"><div id="sub-name"></div><div id="sub-text"></div><div id="sub-next">▸</div></div>
+    <div id="subtitle" class="hidden" role="log" aria-live="polite"><div id="sub-face"><span id="sub-initial"></span><i></i></div><div class="sub-body"><div class="sub-head"><span id="sub-name"></span><span class="sub-wave"><b></b><b></b><b></b><b></b></span></div><div id="sub-text"></div></div><div id="sub-next">▸</div></div>
     <div id="qte" class="hidden"><kbd>E</kbd><div id="qte-text">SEAL THE DOOR</div><div class="qte-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" /><circle id="qte-arc" cx="50" cy="50" r="44" /></svg></div></div>
     <div id="toast"></div>
     <nav id="topbar" aria-label="Game controls">

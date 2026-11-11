@@ -53,13 +53,27 @@ const CLUES = [
   [/^Send a signal to Earth/i, 'CALL EARTH',
     `Stay at the COMMS console and ${USE} on "Transmit distress call".`],
 
-  // ---- Level 3 · New Earth
-  [/^Retrieve the Genesis core/i, 'THE GENESIS CORE',
-    `Find the vault with the glowing core in the control room and ${USE} on "Open the Genesis vault". The control door is giving way — move fast.`],
-  [/^Override the pod bay door/i, 'THE BAY DOOR',
-    'Go to the pod bay door panel and HOLD E / USE until the override bar fills. Letting go pauses it.'],
-  [/^RUN/i, 'RUN',
-    'SPRINT straight to escape pod EP-3 through the open bay door. Don\'t stop — they are hunting you now.'],
+  // ---- Level 3 · Lockdown
+  [/^Seal the sections/i, 'SPLIT THE WORK',
+    `Tap ASSIGN TASK (bottom centre), give Sean and Anna a console each and tap ASSIGNED. Do the rest yourself: the two consoles facing the window, the panel by the south door, and the blast-door panel beside the door you came in through. Do the blast door early — the CONTROL DOOR bar is running out.`],
+  [/^Vent the oxygen/i, 'VENT THE AIR',
+    `Walk to the glowing holo-table in the middle of the room and ${USE} on "Vent the oxygen".`],
+
+  // ---- Level 4 · New Earth
+  [/^Prepare for the journey/i, 'PREPARE ARES-1',
+    `Three jobs: supply crates in the corner by the vault, the fuel-transfer panel by the south door, and the Genesis vault (north wall). Tap ASSIGN TASK to hand two of them to Sean and Anna.`],
+  [/^Go to the docking section/i, 'THE DOCKING SECTION',
+    `Go to the south door of the control room (DOCKING SECTION sign) and ${USE} on "Open the docking section door", then walk through.`],
+  [/^Set the noise beacon/i, 'SET THE BAIT',
+    `In the docking bay, the cargo annex is the door on the west wall. Go in, ${USE} on "Set the noise beacon" at the back. CROUCH so the two behind the glass don't hear you.`],
+  [/^Get out of the annex/i, 'OPEN THE CHAMBER',
+    `Leave the annex, then go to the airlock panel on the east wall of the bay and ${USE} on "Open the decompression chamber". Then get away from their path.`],
+  [/^Hide and stay silent/i, 'STAY SILENT',
+    'Keep still or CRAWL, flashlight off. They follow the beacon into the annex. When both are inside, go to the panel just outside the annex door and seal it.'],
+  [/^Get into the decompression chamber/i, 'INTO THE CHAMBER',
+    `Walk through the glass door into the decompression chamber and ${USE} on "Seal the chamber door".`],
+  [/^Put on your space suit/i, 'SUIT UP',
+    `The suit rack is in the left corner of the chamber. ${USE} on "Put on your space suit".`],
 ];
 
 /** Fallback clues per task id, used when the objective text has no specific entry. */
@@ -68,6 +82,7 @@ const TASK_CLUES = {
   food: `Food and water: search the supply racks along the wall — ${USE} on "Search the supply racks".`,
   protection: `Protection: the EVA locker on the wall opposite the door — ${USE} on "Open the EVA locker".`,
   medical: `Medical supplies: the med cabinet in the corner by the door side — ${USE} on "Open the med cabinet".`,
+  bait: 'Bait the mechanics: beacon in the cargo annex, open the chamber, hide, then seal the annex.',
 };
 
 /**

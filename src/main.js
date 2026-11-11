@@ -12,7 +12,7 @@ import { TouchControls, isTouch } from './ui/touch.js';
 import { Intro } from './intro/intro.js';
 import { CREDITS, WORDMARK_SVG } from './intro/brand.js';
 import { detectTier, FrameGovernor } from './engine/perf.js';
-import { loadProgress, loadCleared, loadResume, LEVELS, BEAT_LEVEL } from './game/progress.js';
+import { loadProgress, loadCleared, loadResume, LEVELS, BEAT_LEVEL, markPlayed } from './game/progress.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -127,7 +127,7 @@ class Game {
     const wake = () => { document.body.classList.remove('idle-ui'); clearTimeout(this._idleT); this._idleT = setTimeout(() => { if (this.mode === 'play') document.body.classList.add('idle-ui'); }, 4000); };
     ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, wake, { passive: true }));
     wake();
-    $('cred-idea').textContent = CREDITS.ideaBy;
+    $('cred-idea').textContent = CREDITS.tagline;
     const foot = document.querySelector('.title-foot b'); if (foot) foot.innerHTML = WORDMARK_SVG;
     // UI sound design: hover (mouse only), press, panel open/close
     document.addEventListener('pointerover', (e) => {
@@ -295,9 +295,10 @@ class Game {
     this.audio.startMusic('calm');
     await this.hud.fade(0, 1.2);
     await new Promise((r) => setTimeout(r, 3500));
-    await this.hud.chapter('NEW EARTH', 3);
-    await this.hud.chapter('THE GENESIS CORE IS SAFE.\nTHE SEARCH FOR A NEW EARTH BEGINS.', 3.5);
-    await this.hud.chapter('TO BE CONTINUED\n\nA GAME BY ANORYX', 3);
+    await this.hud.chapter('ARES-1 IS AWAY', 3);
+    await this.hud.chapter('SIX MONTHS TO MARS.\nTHE GENESIS RESEARCH IS SAFE.', 3.5);
+    await this.hud.chapter('ON MARS, A NEW EARTH IS WAITING.', 3.2);
+    await this.hud.chapter('A CREATIVE EFFORT FROM ANORYX', 3);
     await this.hud.fade(1, 1.2);
     s.remove(pod); shell.geometry.dispose(); flame.geometry.dispose();
     this._finaleTick = null;
@@ -314,6 +315,7 @@ class Game {
 
   async startGame(level = 0, beat = null) {
     this._goFullscreen(); // first, while the tap's user gesture is still fresh
+    markPlayed();
     this.story.toggleLookAround?.(false);
     this.audio.init();
     this.audio.stopMenuMusic(1.2);
@@ -433,7 +435,7 @@ class Game {
     const raw = this.timer.getDelta();
     const dt = Math.min(0.05, raw);
     if (this.mode === 'boot') return; // the intro owns the screen until the console appears
-    if (this.mode === 'finale') { this._finaleTick?.(dt); this.input.endFrame(); R.render(this.t); return; }
+    if (this.mode === 'finale') { this._finaleTick?.(dt); this.input.endFrame(); this.renderer.render(this.t); return; }
     if (this.mode === 'title' || this.mode === 'play' || this.mode === 'dead') this.governor.sample(raw);
     this.t += dt;
     const R = this.renderer;

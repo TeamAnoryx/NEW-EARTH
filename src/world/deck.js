@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { getMaterials, tiled, screenTex } from './materials.js';
 import { AREAS } from './station.js';
+import { buildControlRoom, buildGuideLine } from './ledwall.js';
 
 /**
  * Levels 2–3 world: the Logistics Spine beyond Storage C-7, the fuse alcove, the Control Room
@@ -27,8 +28,12 @@ export function buildDeck(st) {
       [13.6, 28.6, -1.22, 1.22],       // spine
       [19.3, 20.7, 0.9, 2.65],         // fuse alcove
       [28.3, 37.7, -5.7, 5.7],         // control room
-      [32.25, 33.75, -6.6, -5.4],      // bay door
-      [29.3, 36.7, -15.7, -6.3],       // pod bay
+      [32.25, 33.75, -6.6, -5.4],      // docking section door
+      [29.3, 36.7, -12.3, -6.3],       // docking bay
+      [32.45, 33.55, -13.2, -12.0],    // airlock door
+      [29.3, 36.7, -15.7, -12.95],     // decompression chamber
+      [28.0, 29.6, -10.75, -9.75],     // cargo annex door
+      [24.9, 28.6, -11.9, -8.6],       // cargo annex
     ],
   };
   const M = getMaterials();
@@ -88,7 +93,7 @@ export function buildDeck(st) {
   st.setBayDoor = (open) => { st.bayDoor.position.x = 33 + (open ? 1.7 : 0); const i = obst.indexOf(st.bayDoorObst); if (!open && i < 0) obst.push(st.bayDoorObst); if (open && i >= 0) obst.splice(i, 1); };
   st.setCtrlDoor(false); st.setBayDoor(false);
   st._stencilWall(D, 'CONTROL · DECK 3', 33, Y0 + 2.55, 6.0, Math.PI, 2.6);
-  st._stencilWall(D, 'ESCAPE POD BAY ▲', 33, Y0 + 2.62, -5.99, 0, 2.4);
+  st._stencilWall(D, 'DOCKING SECTION ▲', 33, Y0 + 2.62, -5.99, 0, 2.4);
   // consoles in an arc facing the window, comms array, genesis vault
   st.consoleScreens = [];
   const consoleAt = (x, z, ry, label, k) => {
@@ -117,21 +122,91 @@ export function buildDeck(st) {
   st.vaultGlow = st.strip(0.9, 0.06, 0.02, M.stripGreen.clone(), 31.5, Y0 + 1.2, 5.29, D);
   st.vaultSpot = new THREE.Vector3(31.5, Y0, 4.7);
   void vault;
-  // ---------- escape pod bay
+  // LED video walls, holo-table, light bars
+  st.ctrlRoom = buildControlRoom(st, D, Y0);
+  // Level 2 guide: blue line from the storage door to the control room, amber spur to the fuse alcove
+  st.guideLine = buildGuideLine([[6.6, 0], [14.2, 0], [28.4, 0], [29.6, 0]], Y0 + 0.015, 0x3fb8ff); D.add(st.guideLine);
+  st.guideFuse = buildGuideLine([[20, 0.25], [20, 1.75]], Y0 + 0.016, 0xffb547); D.add(st.guideFuse);
+  // ---------- docking section (Level 4): bay, decompression chamber + ARES-1 hatch, cargo annex
   st.box(8.2, 0.2, 10.2, wm(M.floor, 4, 5), 33, Y0 - 0.1, -11, D, { cam: false });
   st.box(8.2, 0.2, 10.2, wm(M.ceiling, 4, 5), 33, Y0 + H + 0.1, -11, D, { cam: false });
-  st.box(0.2, H, 10.2, wall, 28.9, Y0 + H / 2, -11, D); st.box(0.2, H, 10.2, wall, 37.1, Y0 + H / 2, -11, D);
+  st.box(0.2, H, 5.2, wall, 28.9, Y0 + H / 2, -13.5, D); st.box(0.2, H, 3.7, wall, 28.9, Y0 + H / 2, -7.75, D);
+  st.box(0.2, H - 2.4, 1.3, wall, 28.9, Y0 + 2.4 + (H - 2.4) / 2, -10.25, D);
+  st.box(0.2, H, 10.2, wall, 37.1, Y0 + H / 2, -11, D);
   st.box(8.2, H, 0.2, wall, 33, Y0 + H / 2, -16.1, D);
-  const pod = new THREE.Group(); pod.position.set(33, Y0 + 1.3, -14.4); D.add(pod);
-  const shell = new THREE.Mesh(new THREE.CapsuleGeometry(1.1, 1.6, 10, 24), M.chrome); shell.rotation.z = Math.PI / 2; shell.castShadow = true; pod.add(shell);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.12, 0.25, 32, 1, true), M.stripCyan); band.rotation.z = Math.PI / 2; pod.add(band);
-  st.podHatch = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshStandardMaterial({ color: 0x0b1622, emissive: 0x1a4a5a, emissiveIntensity: 0.6 }));
-  st.podHatch.position.set(0, 0, 1.12); pod.add(st.podHatch);
-  st.pod = pod;
-  obst.push({ minX: 30.9, maxX: 35.1, minZ: -15.6, maxZ: -13.3, minY: Y0, maxY: Y0 + 2.4 });
-  st.podSpot = new THREE.Vector3(33, Y0, -12.6);
-  st._stencilWall(D, 'EP-3', 33, Y0 + 2.6, -15.99, 0, 1.2);
-  for (const x of [30, 36]) { const l = st.strip(0.04, 2.6, 0.04, M.stripAmber, x, Y0 + 1.3, -15.95, D); void l; }
+  // glass wall + sliding glass door between the bay and the chamber
+  const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0, transmission: 0, depthWrite: false });
+  solid(3.4, 2.4, 0.08, glassMat, 30.6, Y0 + 1.2, -12.6); solid(3.4, 2.4, 0.08, glassMat, 35.4, Y0 + 1.2, -12.6);
+  st.box(8.2, H - 2.4, 0.2, M.trim, 33, Y0 + 2.4 + (H - 2.4) / 2, -12.6, D, { cam: false });
+  for (const x of [28.95, 32.3, 33.7, 37.05]) st.box(0.12, 2.4, 0.16, M.trim, x, Y0 + 1.2, -12.6, D, { cam: false });
+  st.airlockDoor = st.box(1.4, 2.4, 0.06, glassMat, 33, Y0 + 1.2, -12.6, D, { cam: false });
+  st.airlockObst = { minX: 32.3, maxX: 33.7, minZ: -12.75, maxZ: -12.45, minY: Y0, maxY: Y0 + 2.4 };
+  st.setAirlock = (open) => { st.airlockDoor.position.x = 33 + (open ? 1.45 : 0); const i = obst.indexOf(st.airlockObst); if (!open && i < 0) obst.push(st.airlockObst); if (open && i >= 0) obst.splice(i, 1); };
+  st.airlockLight = st.strip(1.2, 0.05, 0.03, M.stripRed.clone(), 33, Y0 + 2.5, -12.5, D);
+  st._stencilWall(D, 'DECOMPRESSION CHAMBER', 33, Y0 + 2.62, -12.48, 0, 2.6);
+  // ARES-1 hatch on the far wall
+  const hatch = new THREE.Group(); hatch.position.set(33, Y0 + 1.3, -15.95); D.add(hatch);
+  const ringM = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.12, 12, 48), M.chrome); hatch.add(ringM);
+  st.shipHatch = new THREE.Mesh(new THREE.CircleGeometry(0.88, 48), new THREE.MeshStandardMaterial({ color: 0x0b1622, emissive: 0x1a4a5a, emissiveIntensity: 0.7, metalness: 0.6, roughness: 0.4 }));
+  st.shipHatch.position.z = 0.02; hatch.add(st.shipHatch);
+  st._stencilWall(D, 'ARES-1 · TRANSPORT', 33, Y0 + 2.62, -15.99, 0, 2.4);
+  for (const x of [30, 36]) st.strip(0.04, 2.6, 0.04, M.stripAmber, x, Y0 + 1.3, -15.95, D);
+  // space-suit rack in the chamber
+  const rack = solid(1.6, 2.0, 0.5, M.darkMetal, 30.2, Y0 + 1.0, -15.6);
+  void rack;
+  for (const x of [29.7, 30.2, 30.7]) { const suit = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.75, 6, 12), new THREE.MeshStandardMaterial({ color: 0xe8e8e2, roughness: 0.6 })); suit.position.set(x, Y0 + 1.15, -15.25); D.add(suit); }
+  st.suitSpot = new THREE.Vector3(30.2, Y0, -14.6);
+  // the chamber's own work light (cold) and a dim amber emergency light in the bay
+  const chL = new THREE.PointLight(0xbfe6ff, 6, 7, 1.6); chL.position.set(33, Y0 + 2.5, -14.3); D.add(chL);
+  const bayL = new THREE.PointLight(0xffa54a, 3, 7, 1.8); bayL.position.set(33, Y0 + 2.6, -9.6); D.add(bayL);
+  st.dockLights = [[chL, 6], [bayL, 3]];
+  st.setDockLights = (on) => st.dockLights.forEach(([l, v]) => (l.intensity = on ? v : 0));
+  st.setDockLights(false);
+  st.chamberSpot = new THREE.Vector3(33, Y0, -13.7);
+  // airlock control (bay side, far from the glass) + fuel umbilical console
+  solid(0.4, 1.3, 0.6, M.trim, 36.75, Y0 + 0.65, -11.6);
+  st.airlockPanelLight = st.strip(0.04, 0.3, 0.3, M.stripRed.clone(), 36.53, Y0 + 1.1, -11.6, D);
+  st.airlockPanelSpot = new THREE.Vector3(36.0, Y0, -11.6);
+  // cargo annex (west of the bay)
+  st.box(4.4, 0.2, 3.9, floor, 26.75, Y0 - 0.1, -10.25, D, { cam: false });
+  st.box(4.4, 0.2, 3.9, ceil, 26.75, Y0 + H + 0.1, -10.25, D, { cam: false });
+  st.box(4.4, H, 0.2, wall, 26.75, Y0 + H / 2, -8.3, D); st.box(4.4, H, 0.2, wall, 26.75, Y0 + H / 2, -12.2, D);
+  st.box(0.2, H, 3.9, wall, 24.6, Y0 + H / 2, -10.25, D);
+  solid(0.9, 0.9, 0.9, M.crate, 25.3, Y0 + 0.45, -11.6); solid(0.8, 0.6, 0.8, M.crateOrange, 25.2, Y0 + 0.3, -8.9);
+  st.annexDoor = st.box(0.14, 2.4, 1.3, wm(M.wallB, 1.3, 2.4), 28.9, Y0 + 1.2, -10.25, D);
+  st.annexObst = { minX: 28.75, maxX: 29.05, minZ: -10.9, maxZ: -9.6, minY: Y0, maxY: Y0 + 2.4 };
+  st.setAnnex = (closed) => { st.annexDoor.position.z = closed ? -10.25 : -11.5; const i = obst.indexOf(st.annexObst); if (closed && i < 0) obst.push(st.annexObst); if (!closed && i >= 0) obst.splice(i, 1); };
+  st.annexLight = st.strip(0.04, 0.3, 0.3, M.stripAmber.clone(), 29.03, Y0 + 1.3, -11.3, D);
+  st.annexPanelSpot = new THREE.Vector3(29.7, Y0, -11.3);
+  st.beaconSpot = new THREE.Vector3(25.6, Y0, -10.25);
+  st.beacon = new THREE.Group(); st.beacon.position.set(25.25, Y0, -10.25); D.add(st.beacon);
+  st.beacon.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.35, 12), M.crateOrange));
+  st.beaconLamp = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3b3b }));
+  st.beaconLamp.position.y = 0.24; st.beacon.add(st.beaconLamp); st.beacon.position.y = Y0 + 0.17; st.beacon.visible = false;
+  st._stencilWall(D, 'CARGO ANNEX 4', 26.75, Y0 + 2.5, -8.42, Math.PI, 1.8);
+  st.setAirlock(false); st.setAnnex(false);
+  st.zBarriers = [st.airlockObst, st.annexObst, st.bayDoorObst];
+  // supplies (control room, north-west corner)
+  solid(1.0, 1.1, 0.6, M.crateOrange, 29.0, Y0 + 0.55, 5.6); solid(0.8, 0.7, 0.6, M.crate, 30.0, Y0 + 0.35, 5.6);
+  st.suppliesSpot = new THREE.Vector3(29.5, Y0, 4.7);
+  // Level 3 bulkhead panels + the spine blast door
+  const panel = (x, z, ry) => {
+    const g = new THREE.Group(); g.position.set(x, Y0 + 1.3, z); g.rotation.y = ry; D.add(g);
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.08), M.trim));
+    const l = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.02), new THREE.MeshStandardMaterial({ color: 0x220808, emissive: 0xff3b3b, emissiveIntensity: 1.2 }));
+    l.position.set(0, 0.3, 0.05); g.add(l); return l.material;
+  };
+  st.l3Panels = {
+    cargo: panel(34.3, -5.98, 0),
+    passage: panel(28.12, -1.95, Math.PI / 2),
+  };
+  st.l3Spots = {
+    ring: new THREE.Vector3(33.75, Y0, -2.25), lab: new THREE.Vector3(33.75, Y0, 3.45), cargo: new THREE.Vector3(34.3, Y0, -5.25),
+    passage: new THREE.Vector3(28.75, Y0, -2.0), vent: new THREE.Vector3(31.3, Y0, -1.3),
+  };
+  st.fuelSpot = st.l3Spots.cargo;
+  st.blastDoor = st.box(0.3, 2.4, 3.2, M.darkMetal, 28.3, Y0 + 1.2 + 2.4, 0, D, { cam: false });
+  st.setBlast = (k) => { st.blastDoor.position.y = Y0 + 1.2 + 2.4 * (1 - k); };
   // breaker in storage (west wall)
   const brk = new THREE.Group(); brk.position.set(-5.93, Y0 + 1.25, 2.6); D.add(brk);
   brk.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.8, 0.6), M.trim));

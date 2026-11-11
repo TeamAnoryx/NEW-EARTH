@@ -52,22 +52,35 @@ export class HUD {
     return new Promise((res) => {
       document.body.classList.add('talking');
       const box = $('subtitle'), n = $('sub-name'), t = $('sub-text');
-      box.classList.remove('hidden');
+      clearTimeout(this._subHide);
+      const col = SPEAKERS[name] ?? SPEAKERS[''];
+      const changed = box.dataset.who !== (name || '') || box.classList.contains('hidden') || box.classList.contains('out');
+      box.classList.remove('hidden', 'out');
+      box.dataset.who = name || '';
+      box.style.setProperty('--sc', col);
       n.textContent = name ? name.toUpperCase() : '';
-      n.style.color = SPEAKERS[name] ?? SPEAKERS[''];
+      $('sub-initial').textContent = name === 'GROUND' ? '📡' : (name || '•').slice(0, 1).toUpperCase();
+      box.classList.add('speaking');
+      if (changed) { box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop'); }
       t.textContent = '';
       let i = 0;
       clearInterval(this._typer);
       this._typer = setInterval(() => {
         i += 2; t.textContent = text.slice(0, i);
-        if (i >= text.length) clearInterval(this._typer);
+        if (i >= text.length) { clearInterval(this._typer); box.classList.remove('speaking'); }
       }, 22);
       const dur = hold ?? Math.max(1.8, 0.9 + text.length * 0.052);
-      const finish = () => { clearTimeout(this._subTimer); clearInterval(this._typer); this._advance = null; this._finish = null; document.body.classList.remove('talking'); res(); };
+      const finish = () => {
+        clearTimeout(this._subTimer); clearInterval(this._typer); this._advance = null; this._finish = null;
+        document.body.classList.remove('talking'); box.classList.remove('speaking');
+        // tuck the box away unless another line follows straight on
+        clearTimeout(this._subHide); this._subHide = setTimeout(() => box.classList.add('out'), 450);
+        res();
+      };
       this._finish = finish;
       this._subTimer = setTimeout(finish, dur * 1000);
       this._advance = () => {
-        if (t.textContent.length < text.length) { clearInterval(this._typer); t.textContent = text; return; }
+        if (t.textContent.length < text.length) { clearInterval(this._typer); t.textContent = text; box.classList.remove('speaking'); return; }
         finish();
       };
     });
@@ -142,6 +155,41 @@ export class HUD {
   }
 
   /** Show/hide the floating SWITCH PLAYER button; onClick fires when pressed. */
+  /** Floating ASSIGN TASK button (Levels 3–4). */
+  assignButton(visible, onClick) {
+    const bar = $('assignbar');
+    const was = !bar.classList.contains('hidden');
+    bar.classList.toggle('hidden', !visible);
+    if (visible && !was) { bar.classList.remove('pop'); void bar.offsetWidth; bar.classList.add('pop'); }
+    bar.querySelector('.as-open').onclick = visible ? () => { this.audio.uiSound('press'); onClick?.(); } : null;
+  }
+
+  /**
+   * Task picker: each row = a task; tap a crew member to give it to them (tap again to clear).
+   * Resolves with [{id, who}] on ASSIGNED, or null when closed.
+   */
+  assignPanel(tasks, crew) {
+    const box = $('assigner'), list = box.querySelector('.as-list'), go = box.querySelector('.as-go');
+    const picks = {};
+    list.innerHTML = tasks.map((t) => `<li data-id="${t.id}"><span class="as-task">${t.text}</span><span class="as-who">${crew.map((c) =>
+      `<button type="button" class="as-c" data-who="${c.name}" style="--c:${c.color}"><i>${c.name[0]}</i>${c.name.toUpperCase()}${c.busy ? `<small>+${c.busy}</small>` : ''}</button>`).join('')}</span></li>`).join('');
+    list.querySelectorAll('li').forEach((li) => li.querySelectorAll('.as-c').forEach((b) => (b.onclick = () => {
+      const id = li.dataset.id, who = b.dataset.who;
+      picks[id] = picks[id] === who ? null : who;
+      li.querySelectorAll('.as-c').forEach((x) => x.classList.toggle('on', picks[id] === x.dataset.who));
+      li.classList.toggle('picked', !!picks[id]);
+      go.disabled = !Object.values(picks).some(Boolean);
+      this.audio.uiSound(picks[id] ? 'on' : 'off');
+    })));
+    go.disabled = true;
+    box.classList.remove('hidden'); document.body.classList.add('focus-ui');
+    return new Promise((res) => {
+      const done = (v) => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); go.onclick = null; box.querySelector('.as-x').onclick = null; res(v); };
+      go.onclick = () => { this.audio.uiSound('play'); done(Object.entries(picks).filter(([, w]) => w).map(([id, who]) => ({ id, who }))); };
+      box.querySelector('.as-x').onclick = () => { this.audio.uiSound('close'); done(null); };
+    });
+  }
+
   switchButton(visible, onClick) {
     const bar = $('switchbar');
     bar.classList.toggle('hidden', !visible);
@@ -181,7 +229,7 @@ export class HUD {
     let nowSet = false;
     $('tasks-list').innerHTML = items.map((t) => {
       const cls = t.done ? 'done' : !nowSet ? ((nowSet = true), 'now') : '';
-      return `<li class="${cls}">${t.text}</li>`;
+      return `<li class="${cls}">${t.text}${t.who && !t.done ? ` <em class="tk-who">→ ${t.who.toUpperCase()}</em>` : ''}</li>`;
     }).join('');
   }
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * LEVEL 2 — BLACKOUT and LEVEL 3 — NEW EARTH.
+ * LEVEL 2 — BLACKOUT (Levels 3–4 live in endgame.js); shared deck AI.
  * Installed onto Story.prototype (keeps story.js focused on the prologue + Level 1).
  *
  * Infected AI on the deck: patrol → suspicious → hunt. They are blind: they track noise
@@ -18,12 +18,6 @@ const L2_TASKS = [
   { id: 'align', text: 'Align the comms antenna' },
   { id: 'signal', text: 'Send a signal to Earth' },
 ];
-const L3_TASKS = [
-  { id: 'core', text: 'Retrieve the Genesis core from the vault' },
-  { id: 'baydoor', text: 'Override the escape-pod bay door' },
-  { id: 'run', text: 'Reach escape pod EP-3' },
-  { id: 'launch', text: 'Launch' },
-];
 
 // patrol routes on the deck (x, z); a single point = stands still, "meditating"
 const PATROLS = [
@@ -36,8 +30,8 @@ const PATROLS = [
   [[13.2, -4.2]],
   [[7.0, -4.1]],
   [[13.3, 4.1]],
-  [[29.8, -15.2]],   // pod bay (Level 3)
-  [[36.2, -8.6]],    // pod bay (Level 3)
+  [[31.7, -14.3]],   // mechanic, decompression chamber (Level 4)
+  [[34.3, -14.8]],   // mechanic, decompression chamber (Level 4)
 ];
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -52,6 +46,9 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     S.setBlackout(blackout); S.ctrlPower = ctrlPower; S.alarmPower = alarm;
     S.setCtrlDoor(ctrlClosed); S.setBayDoor(bayOpen);
     S.consoleScreens.forEach((m) => (m.emissiveIntensity = ctrlPower ? 0.85 : 0));
+    S.ctrlRoom?.setPower(ctrlPower, true);
+    S.setDockLights?.(false);
+    S.guideLine?.userData.show(false); S.guideFuse?.userData.show(false);
     S.setArea('C');
     this.darkness = blackout;
     this.zombies.forEach((z, i) => {
@@ -79,6 +76,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
   P._deckZombie = function (z, dt) {
     const c = z.c, pos = c.root.position;
     if (z.mode === 'off') { c.root.visible = false; return; }
+    if (z.mode === 'dead') { c.root.visible = true; c.speed = 0; c.setState('dead', 4); c.update(dt); return; }
     if (!this.deckAI) { c.speed = 0; c.setState('zIdle', 3); c.update(dt); return; } // cutscene: AI paused
     const max = this.lead.position;
     const dx = max.x - pos.x, dz = max.z - pos.z, d = Math.hypot(dx, dz);
@@ -103,6 +101,16 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
       else if (r.length === 1 || z.pause > 0) { z.pause -= dt; c.speed = 0; c.setState('zIdle', 3); if (z.pause <= 0 && r.length > 1) z.wp = (z.wp + 1) % r.length; }
       else if (td < 0.25) { z.pause = 1.5 + Math.random() * 2.5; }
       else this._moveZombie(z, tx, tz, 0.65, 'zWalk', dt);
+    } else if (z.mode === 'lure') {
+      // walking to the noise beacon — still listening for anything closer
+      z.susp = Math.max(0, z.susp + (heard * 1.6 - 0.35) * dt);
+      if (z.susp > 1) { this._huntStart(z); return; }
+      if (z.delay > 0) { z.delay -= dt; c.speed = 0; c.setState('zIdle', 3); c.update(dt); return; }
+      const tgt = z.lure[z.lureI];
+      if (Math.hypot(tgt[0] - pos.x, tgt[1] - pos.z) < 0.35) {
+        if (z.lureI < z.lure.length - 1) z.lureI++;
+        else { z.mode = 'patrol'; z.route = [tgt]; z.wp = 0; z.susp = 0; z.turned = false; }
+      } else this._moveZombie(z, tgt[0], tgt[1], 0.95, 'zWalk', dt);
     } else if (z.mode === 'hunt') {
       z.huntT += dt;
       const lost = d > 9 && heard < 0.15;
@@ -123,6 +131,15 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     let nx = pos.x + (dx / d) * step, nz = pos.z + (dz / d) * step;
     // sealed control-room door holds them back — they pound on it instead
     if (this.station.ctrlDoor.position.z === 0 && pos.x < 28 && nx > 27.55) { nx = 27.55; z.pound = (z.pound ?? 0) - dt; if (z.pound <= 0) { z.pound = 0.6 + Math.random() * 0.6; this.audio.impact(V(28, -3.5, 0), 0.5, true); } c.setState('zPound', 6); c.speed = 0; pos.x = nx; return; }
+    // closed doors (airlock glass, annex, docking door) hold them back
+    const obs = this.station.obstacles.C;
+    for (const b of this.station.zBarriers || []) {
+      if (obs.includes(b) && nx > b.minX - 0.3 && nx < b.maxX + 0.3 && nz > b.minZ - 0.3 && nz < b.maxZ + 0.3) {
+        c.speed = 0; c.setState('zPound', 6);
+        z.pound = (z.pound ?? 0) - dt; if (z.pound <= 0) { z.pound = 0.8 + Math.random() * 0.6; this.audio.impact(V((b.minX + b.maxX) / 2, -3.5, (b.minZ + b.maxZ) / 2), 0.35, false); }
+        return;
+      }
+    }
     const w = nearestWalkable('C', nx, nz);
     pos.x = w.x; pos.z = w.z;
     c.speed = step / dt;
@@ -209,6 +226,8 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
       S.storageDoor.rate = 1; S.setStorageDoor(0.95);
       this._storageDoorObstacle(false);
       this.completeTask('door2');
+      S.guideLine.userData.show(true); S.guideFuse.userData.show(true);
+      this.hud.toast('FOLLOW THE BLUE LINE TO THE CONTROL ROOM', 3.2);
       this.hud.objective('Sneak through the Logistics Spine');
       await this.say('Max', '(whispering) Stay low. Stay behind me.', 2);
     } });
@@ -220,6 +239,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
       await this.wait(1.1);
       this.lead.reachTarget = 0; this.player.enabled = true;
       this.addItem('Aux fuse'); this.completeTask('fuse');
+      S.guideFuse.userData.show(false);
       S.fuseLight.material.emissiveIntensity = 0;
       this.hud.objective('Reach the control room');
     } });
@@ -259,6 +279,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
       await this.wait(0.6); this.lead.reachTarget = 0;
       this.audio.lock(S.fuseSocketSpot);
       S.ctrlPower = true; S.setArea('C');
+      S.ctrlRoom.setPower(true);
       S.auxLight.material.emissive.set(0x3dff8a);
       for (let k = 0; k < S.consoleScreens.length; k++) { await this.wait(0.25); S.consoleScreens[k].emissiveIntensity = 0.85; this.audio.uiSound('on'); }
       this.completeTask('power');
@@ -342,7 +363,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     await this.say('GROUND', 'Up there it crawls. Down here... it moves through a city in hours. Airborne. Instant.', 3.6);
     await this.say('GROUND', 'Every hospital. Every army. We think less than one percent of us are left.', 3.4);
     await this.say('Sean', '...Then humanity\'s finished.', 2.2);
-    await this.say('GROUND', 'Not if Genesis works. Your lab was building it — a cure, and a seed vault. Get the Genesis core onto a pod. Find somewhere clean. Find a new—', 4.6);
+    await this.say('GROUND', 'Not if Genesis works. Your lab was building it — a cure. Ares colony on Mars is still clean. Get it there. Find a new—', 4.6);
     S.consoleScreens.forEach((mt) => mt.emissive.set(0xff3b3b));
     this.audio.impact(V(28, -3.5, 0), 1, true); this.cam.shake(0.05);
     await this.say('Max', 'Kestrel? Kestrel!', 1.4);
@@ -354,109 +375,15 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     this.start('l3');
   };
 
-  // ======================================================================= LEVEL 3
-  P.beat_l3 = async function () {
-    const S = this.station;
-    this.checkpoint = 'l3';
-    this.zones = [];
-    this.hud.fade(1, 0);
-    this._storageDoorObstacle(false);
-    this._deckSetup({ blackout: true, ctrlPower: true, alarm: true, ctrlClosed: true, bayOpen: false, bayZombies: true });
-    // the horde gathers at the control-room door
-    this.zombies.forEach((z, i) => { if (i < 9) { z.c.root.position.set(25 + (i % 3) * 0.9, -4.6, -1 + Math.floor(i / 3) * 0.9); z.mode = 'hunt'; z.huntT = 0; z.lostT = -999; z.groanT = Math.random() * 2; z.huntSpeed = 2.4; } else { z.mode = 'patrol'; } });
-    this._placeCrew('C', [33.6, 0.4, Math.PI], [32.6, 1.8, -Math.PI / 2], [32.4, -1.2, -Math.PI / 2]);
-    if (!this.inventory?.length) ['Plasma cutter', 'EVA vests', 'Med-kit'].forEach((n) => this.addItem(n));
-    this.setTasks('LEVEL 3 · NEW EARTH', L3_TASKS);
-    this.lightOn = true; this._applyLight();
-    this.audio.startLevelMusic(3);
-    this.cinematic(true);
-    this.cam.camera.position.set(30.5, -3.0, -2.5);
-    this.cam.shot(V(30.5, -3.0, -2.5), V(28, -3.4, 0), 0);
-    this.hud.fade(0, 0.6);
-    this.hud.chapter('LEVEL 3\nNEW EARTH', 2.4);
-    await this.say('Sean', 'That door won\'t hold a minute!', 1.8);
-    await this.say('Max', 'Anna — the Genesis core. Sean, the bay door. Go!', 2.2);
-    this.cinematic(false);
-    this.fSean.active = this.fAnna.active = true;
-    this.doorTimer = { v: 1, rate: 1 / 75 };
-    this.hud.objective('Retrieve the Genesis core from the vault');
-    this.addInteract({ id: 'core', pos: S.vaultSpot, r: 1.1, text: 'Open the Genesis vault', onUse: async () => {
-      this.removeInteract('core');
-      this.player.enabled = false; this.max.setState('kneel', 5); this.audio.rustle();
-      await this.wait(1.2);
-      this.max.setState('idle', 4); this.player.enabled = true;
-      S.vaultGlow.material.emissive.set(0xff3b3b);
-      this.addItem('GENESIS CORE'); this.completeTask('core');
-      await this.say('Anna', 'That\'s it — the whole project in one cylinder.', 2);
-      this.hud.objective('Override the pod bay door — hold E');
-      this.addInteract({ id: 'baydoor', pos: V(33, -4.6, -5.2), r: 1.0, hold: true, text: 'Hold to override the bay door', onUse: () => {} });
-      this.bayHold = { p: 0 };
-    } });
-  };
-
-  /** Level 3 per-frame: control-room door integrity + the bay-door override hold. */
-  P._updateL3 = function (dt) {
-    if (this.beat !== 'l3') return;
-    const dtm = this.doorTimer;
-    if (dtm && !dtm.broken) {
-      dtm.v -= dtm.rate * dt;
-      this.hud.timer(dtm.v, true, 'CONTROL DOOR');
-      if (Math.random() < dt * 2.5) { this.audio.impact(V(28, -3.5, 0), 0.6, true); this.cam.shake(0.006); }
-      if (dtm.v <= 0) { dtm.broken = true; this._breach(); }
-    }
-    const bh = this.bayHold;
-    if (bh && !bh.done) {
-      if (this.doorHold?.active && this.interactables.some((i) => i.id === 'baydoor')) { bh.p += dt / 3; this.lead.reachTarget = 1; this.hud.qte(bh.p, true, 'OVERRIDING'); }
-      else { this.lead.reachTarget = 0; if (bh.p > 0) this.hud.qte(bh.p, true, 'KEEP HOLDING'); }
-      if (bh.p >= 1) {
-        bh.done = true; this.hud.qte(0, false); this.lead.reachTarget = 0;
-        this.removeInteract('baydoor');
-        this.station.setBayDoor(true); this.audio.doorSlide(V(33, -3.5, -6), false);
-        this.completeTask('baydoor');
-        this.hud.objective('RUN — reach escape pod EP-3');
-        // the pod bay wasn't empty, and the door gives way at the same moment
-        this.zombies.slice(9).forEach((z) => { z.huntSpeed = 2.2; this._huntStart(z); });
-        if (!dtm.broken) { dtm.v = Math.min(dtm.v, 0.02); }
-        this.zones.push({ test: (p) => Math.hypot(p.x - this.station.podSpot.x, p.z - this.station.podSpot.z) < 1.3, fn: () => this._launch() });
-      }
-    }
-  };
-
-  P._breach = function () {
-    this.station.setCtrlDoor(false);
-    this.audio.impact(V(28, -3.5, 0), 1, true); this.audio.scream(V(27, -3.5, 0)); this.cam.shake(0.06);
-    this.hud.timer(0, false);
-    this.hud.toast('THE DOOR IS DOWN', 2);
-    this.zombies.slice(0, 9).forEach((z, i) => { z.huntSpeed = 2.0 + (i % 3) * 0.25; z.mode = 'hunt'; z.lostT = -999; });
-  };
-
-  P._launch = async function () {
-    const S = this.station;
-    this.completeTask('run');
-    this.cinematic(true);
-    this.deckAI = null; this.hud.noise(0, false); this.hud.timer(0, false);
-    this.zombies.forEach((z) => { if (z.mode === 'hunt') { z.mode = 'off'; } });
-    [this.max, this.sean, this.anna].forEach((c) => (c.root.visible = false));
-    this.cam.shot(V(33, -3.0, -8.2), V(33, -3.3, -14.4), 0.6);
-    this.audio.doorSlide(S.podSpot, true);
-    S.podHatch.material.emissive.set(0x3dff8a);
-    await this.say('Max', 'Everyone in? Strap down — LAUNCH!', 1.8);
-    this.completeTask('launch');
-    this.audio.stinger(1.2); this.cam.shake(0.08);
-    await this.tween(1.6, (k) => { S.pod.position.z = -14.4 - k * k * 6; S.pod.position.y = -3.3 + Math.sin(k * 20) * 0.02; });
-    await this._guardBeat(this.hud.fade(1, 0.6));
-    S.pod.position.set(33, -3.3, -14.4);
-    saveProgress(4); // level 3 cleared
-    await this._guardBeat(this.hud.levelCleared(3, 'NEW EARTH'));
-    await this.g.playFinale();
-  };
-
   // tick hooks (called from Story.update)
   const baseUpdate = P.update;
   P.update = function (dt) {
     baseUpdate.call(this, dt);
+    const S = this.station;
+    if (this.area === 'C' && S.ctrlRoom) { S.ctrlRoom.update(dt); S.guideLine.userData.update(dt); S.guideFuse.userData.update(dt); }
     this._updateDeck(dt);
     this._updateL3(dt);
+    this._updateL4(dt);
   };
 }
 

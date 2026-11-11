@@ -1,7 +1,8 @@
 import './intro.css';
 import { loadYouTubeAPI, createPlayer, playSegmentsAB, waitUntilPlaying } from './youtube.js';
 import { IntroScene } from './introScene.js';
-import { CREDITS, LOGO_MARK, wordmark, logoBlock } from './brand.js';
+import { CREDITS, GAME_MARK, wordmark, logoBlock } from './brand.js';
+import { hasPlayed, markPlayed } from '../game/progress.js';
 import { FootageOverlay } from './overlay.js';
 
 /** Footage cuts requested for the intro (seconds into the SERENE "Cosmos" video). */
@@ -25,12 +26,23 @@ export class Intro {
     this.root = document.createElement('div');
     this.root.id = 'intro';
     this.root.innerHTML = `
+      <div class="in-sting" aria-hidden="true">
+        <div class="st-mark">${GAME_MARK}</div>
+        <div class="st-under">
+          <div class="st-text">${wordmark('AN ANORYX CREATION', 'st-word')}</div>
+          <div class="st-lock">${logoBlock('st-logo')}</div>
+        </div>
+      </div>
       <div class="in-gate">
-        <div class="in-gate-mark">${LOGO_MARK}</div>
+        <div class="in-gate-mark">${GAME_MARK}</div>
         <div class="in-gate-title">NEW&nbsp;EARTH</div>
-        <button class="in-gate-btn" type="button"><span class="in-pulse"></span><span>TAP TO ENTER</span></button>
+        <div class="in-gate-actions">
+          <button class="in-gate-btn" type="button"><span class="in-pulse"></span><span>TAP TO ENTER</span></button>
+          <button class="in-gate-console hidden" type="button"><span>SKIP TO CONSOLE</span><svg viewBox="0 0 24 24"><path d="M6 5l8 7-8 7M16 5v14"/></svg></button>
+        </div>
         <div class="in-gate-sub">Best in landscape · sound on</div>
         <div class="in-gate-load"><i></i></div>
+        <div class="in-gate-brand">${logoBlock('gate-logo')}<span>${CREDITS.tagline.toUpperCase()}</span></div>
       </div>
       <div class="in-stage hidden">
         <div class="in-video"><div class="in-yt in-yt-a"><div id="in-yt-video"></div></div><div class="in-yt in-yt-b"><div id="in-yt-video-b"></div></div></div>
@@ -46,7 +58,7 @@ export class Intro {
         <div class="in-title">${wordmark('NEW EARTH', 'in-word')}</div>
         <div class="in-credits">
           <div class="in-cred-row in-cred-studio"><span class="in-cred-k">CREATED BY</span>${logoBlock('in-logo-small')}</div>
-          <div class="in-cred-row in-cred-idea"><span class="in-cred-k">CREATIVE IDEA BY</span><span class="in-cred-v">${CREDITS.ideaBy}</span></div>
+          <div class="in-cred-row in-cred-idea"><span class="in-cred-v">${CREDITS.tagline}</span></div>
         </div>
         <button class="in-min hidden" type="button" aria-label="Exit full screen">
           <svg viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
@@ -56,7 +68,7 @@ export class Intro {
       <div class="in-white">
         <div class="in-pw">
           <div class="in-pw-by">POWERED BY</div>
-          ${logoBlock('in-logo-big', true)}
+          ${logoBlock('in-logo-big')}
         </div>
       </div>`;
     document.body.appendChild(this.root);
@@ -166,13 +178,45 @@ export class Intro {
   _waitForTap() {
     return new Promise((resolve) => {
       const go = (e) => {
+        if (e?.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
         e?.preventDefault?.();
+        const choice = e?.target?.closest?.('.in-gate-console') ? 'console' : 'enter';
         this.root.removeEventListener('pointerup', go); window.removeEventListener('keydown', go);
-        resolve();
+        resolve(choice);
       };
       this.root.addEventListener('pointerup', go);
       window.addEventListener('keydown', go);
     });
+  }
+
+  /**
+   * Opening ident on a dark full-viewport stage (browsers only allow real full screen after a tap):
+   * NEW EARTH mark draws itself in 3 s → "AN ANORYX CREATION" → fades (1.5 s) → ANORYX lockup
+   * holds 2 s → the tap-to-enter page. Returning players can tap to skip it.
+   */
+  async _sting() {
+    const st = $('.in-sting', this.root), gate = $('.in-gate', this.root);
+    gate.classList.add('pre');
+    let skip = null;
+    const skipped = new Promise((r) => (skip = r));
+    const onTap = () => { if (hasPlayed()) skip('skip'); };
+    st.addEventListener('pointerup', onTap);
+    const step = async (cls, ms) => { st.classList.add(cls); return Promise.race([wait(ms), skipped]); };
+    const seq = (async () => {
+      // start once the page has settled (heavy textures still loading would make the draw stutter)
+      if (document.readyState !== 'complete') await Promise.race([new Promise((r) => window.addEventListener('load', r, { once: true })), wait(2500)]);
+      await wait(250);
+      if (await step('draw', 3000)) return;           // dots → rings → lines (3 s)
+      if (await step('text', 1300)) return;           // "AN ANORYX CREATION"
+      if (await step('text-out', 1500)) return;       // fades away in 1.5 s
+      if (await step('lock', 800 + 2000)) return;     // ANORYX lockup fades in, holds 2 s
+    })();
+    await Promise.race([seq, skipped]);
+    st.removeEventListener('pointerup', onTap);
+    st.classList.add('out');
+    gate.classList.remove('pre');
+    if (hasPlayed()) setTimeout(() => $('.in-gate-console', this.root)?.classList.remove('hidden'), 500);
+    setTimeout(() => st.remove(), 900);
   }
 
   async _fullscreen() {
@@ -322,10 +366,26 @@ export class Intro {
     await wait(650);
   }
 
+  /** Returning player: straight from the gate to the console (no footage). */
+  async _toConsole({ waitForBoot, beforeReveal }) {
+    this.skipped = true;
+    this.audio.init();
+    this.audio.uiSound('play');
+    $('.in-gate', this.root).classList.add('leave');
+    await Promise.all([waitForBoot(), wait(600)]);
+    try { beforeReveal?.(); } catch (e) { console.error(e); }
+    this.root.classList.add('fade-out');
+    try { this.video?.destroy(); this.videoB?.destroy(); this.music?.destroy(); } catch (e) { console.info('YouTube player cleanup:', e?.message || e); }
+    await wait(900);
+    this.root.remove();
+  }
+
   async run({ waitForBoot, beforeReveal }) {
     const gate = $('.in-gate', this.root);
     this._synthMusic = false;
-    await this._waitForTap();
+    await this._sting();
+    const choice = await this._waitForTap();
+    if (choice === 'console') return this._toConsole({ waitForBoot, beforeReveal });
     this._unlockLocalAudio();
     this.audio.init();
     this.audio.uiSound('play');
@@ -375,6 +435,7 @@ export class Intro {
     clearInterval(this._volIv);
     this.overlay?.destroy();
     scene.dispose();
+    markPlayed();
     await wait(1300);
     this.root.remove();
   }

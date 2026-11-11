@@ -1,7 +1,7 @@
 /**
  * Level progress, persisted per browser.
- *   cleared  = highest level finished (-1 = none). Levels: 0 Prologue, 1 Salvage, 2 Blackout, 3 New Earth.
- *   unlocked = the furthest level the player may start from (cleared + 1, max 3).
+ *   cleared  = highest level finished (-1 = none). Levels: 0 Prologue, 1 Salvage, 2 Blackout, 3 Lockdown, 4 New Earth.
+ *   unlocked = the furthest level the player may start from (cleared + 1, max 4).
  */
 const KEY = 'new-earth-cleared';
 const LEGACY = 'new-earth-level'; // older builds stored "level reached" (1–3)
@@ -9,13 +9,14 @@ export const LEVELS = [
   { n: 0, name: 'OUTBREAK', beat: 'intro' },
   { n: 1, name: 'SALVAGE', beat: 'l1intro' },
   { n: 2, name: 'BLACKOUT', beat: 'l2intro' },
-  { n: 3, name: 'NEW EARTH', beat: 'l3' },
+  { n: 3, name: 'LOCKDOWN', beat: 'l3' },
+  { n: 4, name: 'NEW EARTH', beat: 'l4' },
 ];
 
 export function loadCleared() {
   try {
     const v = localStorage.getItem(KEY);
-    if (v !== null) return Math.max(-1, Math.min(3, Math.floor(+v)));
+    if (v !== null) return Math.max(-1, Math.min(4, Math.floor(+v)));
     const legacy = +localStorage.getItem(LEGACY);
     return legacy >= 1 ? Math.min(3, legacy - 1) : -1;
   } catch (e) { console.info('Progress unavailable:', e?.message || e); return -1; }
@@ -26,8 +27,8 @@ export function saveCleared(level) {
   catch (e) { console.info('Progress not saved (storage unavailable):', e?.message || e); }
 }
 
-/** Furthest level the player may start (0–3). */
-export function loadProgress() { return Math.min(3, loadCleared() + 1); }
+/** Furthest level the player may start (0–4). */
+export function loadProgress() { return Math.min(4, loadCleared() + 1); }
 
 /** Back-compat: "level n reached" == level n-1 cleared. */
 export function saveProgress(level) { saveCleared(level - 1); }
@@ -35,10 +36,10 @@ export function saveProgress(level) { saveCleared(level - 1); }
 // ---------------------------------------------------------------- exact resume point
 const RESUME = 'new-earth-resume';
 /** Which level each story beat belongs to. */
-export const BEAT_LEVEL = { intro: 0, wake: 0, door: 0, search: 0, duct: 0, l1intro: 1, storage: 1, ending: 1, l2intro: 2, l2ctrl: 2, l3: 3 };
+export const BEAT_LEVEL = { intro: 0, wake: 0, door: 0, search: 0, duct: 0, l1intro: 1, storage: 1, ending: 1, l2intro: 2, l2ctrl: 2, l3: 3, l4: 4, l4dock: 4 };
 
 /** Story order of checkpoint beats; the saved resume point only ever moves forward along it. */
-export const BEAT_ORDER = ['intro', 'door', 'search', 'l1intro', 'storage', 'l2intro', 'l2ctrl', 'l3'];
+export const BEAT_ORDER = ['intro', 'door', 'search', 'l1intro', 'storage', 'l2intro', 'l2ctrl', 'l3', 'l4', 'l4dock'];
 
 /**
  * Remember the furthest checkpoint reached (persists across visits, per browser).
@@ -64,3 +65,14 @@ export function loadResume() {
   return LEVELS[lvl].beat;
 }
 
+
+// ---------------------------------------------------------------- first visit vs returning
+const PLAYED = 'new-earth-played';
+/** True once this browser has seen the intro through (or has any saved progress). */
+export function hasPlayed() {
+  try { return localStorage.getItem(PLAYED) === '1' || localStorage.getItem(KEY) !== null || localStorage.getItem(RESUME) !== null; }
+  catch (e) { console.info('Played flag unavailable:', e?.message || e); return false; }
+}
+export function markPlayed() {
+  try { localStorage.setItem(PLAYED, '1'); } catch (e) { console.info('Played flag not saved:', e?.message || e); }
+}

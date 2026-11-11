@@ -5,6 +5,7 @@ import { PlayerController, ThirdPersonCamera, Follower, nearestWalkable } from '
 import { saveProgress, saveResume, BEAT_LEVEL } from './progress.js';
 import { getMaterials } from '../world/materials.js';
 import { installLevels } from './levels.js';
+import { installEndgame } from './endgame.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const HANG = new Promise(() => {});
@@ -217,7 +218,7 @@ export class Story {
     this.glassTimer = null; this.stealth = null; this.qte = null; this.doorHold = null;
     this.deckAI = null; this.zones = []; this.doorTimer = null; this.bayHold = null;
     document.getElementById('align')?.remove(); document.body.classList.remove('minigame');
-    if (!['l2intro', 'l2ctrl', 'l3'].includes(beat)) { this.darkness = false; if (this.station.blackout) this.station.setBlackout(false); }
+    if (!['l2intro', 'l2ctrl', 'l3', 'l4', 'l4dock'].includes(beat)) { this.darkness = false; if (this.station.blackout) this.station.setBlackout(false); }
     [this.max, this.sean, this.anna].forEach((c) => (c.root.visible = true));
     this.g.tabletEnabled = beat !== 'intro' && beat !== 'door' && beat !== 'search' ? true : this.g.tabletEnabled;
     this.lead.reachTarget = 0; this.sean.custom = this.anna.custom = this.max.custom = null;
@@ -225,7 +226,8 @@ export class Story {
     this.beat = beat;
     this.restoreControl(); this.hud.switchButton(false);
     this.clearBlood(); this.deathCine = false; document.body.classList.remove('dying');
-    this.switchAllowed = ['l2intro', 'l2ctrl', 'l3'].includes(beat);
+    this.switchAllowed = ['l2intro', 'l2ctrl'].includes(beat);
+    this._assign = null; this._onTaskDone = null; this._beacon = null; this.hud.assignButton(false);
     document.body.classList.toggle('can-switch', this.switchAllowed);
     if (['door', 'search', 'storage'].includes(beat)) this.checkpoint = beat;
     this.level = BEAT_LEVEL[beat] ?? this.level ?? 0;
@@ -1204,3 +1206,4 @@ export class Story {
 }
 
 installLevels(Story, { V, nearestWalkable, saveProgress });
+installEndgame(Story, { V, saveProgress, saveResume });
