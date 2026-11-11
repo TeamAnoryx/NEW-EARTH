@@ -256,7 +256,8 @@ export class HUD {
     this._invCount = list.length;
     count.textContent = list.length;
     el.classList.toggle('empty', !list.length);
-    ul.innerHTML = list.length ? list.map((n) => `<li><button type="button" class="inv-item" data-name="${n.replace(/"/g, '&quot;')}"><span>${n}</span><em>USE</em></button></li>`).join('') : '<li class="inv-none">Nothing yet</li>';
+    const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    ul.innerHTML = list.length ? list.map((n) => `<li><button type="button" class="inv-item" data-name="${esc(n)}"><span>${esc(n)}</span><em>USE</em></button></li>`).join('') : '<li class="inv-none">Nothing yet</li>';
     ul.querySelectorAll('.inv-item').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); this.audio.uiSound('press'); this._onUseItem?.(b.dataset.name); }));
     if (grew) { const b = el.querySelector('.inv-btn'); b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); }
   }
