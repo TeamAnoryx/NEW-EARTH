@@ -638,3 +638,10 @@ body.dying #keyhint, body.focus-ui #keyhint { opacity: 0; pointer-events: none; 
 body.touch #noise { top: calc(50% + 30px); }
 #noise { top: calc(50% + 24px); }
 .tk-btn kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 8px; border-radius: 5px; font: 700 10px var(--mono); color: #fff; background: rgba(0, 16, 24, .55); }
+
+/* joystick hint at game start (touch): dimmed, pulsing, labelled — hidden after the first touch */
+.t-stick.idle { opacity: .6; animation: stickIdle 2.2s ease-in-out infinite; }
+.t-stick.idle i { animation: knobIdle 2.2s ease-in-out infinite; }
+.t-stick.idle::after { content: "MOVE"; position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); font: 700 9px var(--mono); letter-spacing: .3em; color: rgba(232, 244, 255, .7); white-space: nowrap; }
+@keyframes stickIdle { 50% { opacity: .9; box-shadow: 0 0 22px rgba(95, 243, 255, .35); } }
+@keyframes knobIdle { 25% { transform: translate(0, -14px); } 75% { transform: translate(0, 10px); } }

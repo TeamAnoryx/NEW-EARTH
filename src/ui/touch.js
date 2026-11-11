@@ -78,9 +78,29 @@ export class TouchControls {
     this.show(false);
   }
 
+  /** Pointer capture is a nicety (keeps tracking a thumb that slides off); never let it abort a touch. */
+  _capture(el, id) {
+    try { el.setPointerCapture?.(id); } catch (e) { console.debug('Pointer capture unavailable:', e?.message || e); }
+  }
+
   _buzz(ms = 12) { try { navigator.vibrate?.(ms); } catch (e) { console.debug('unsupported:', e?.message || e); } }
 
-  show(v) { this.root.classList.toggle('hidden', !v); }
+  show(v) {
+    const wasHidden = this.root.classList.contains('hidden');
+    this.root.classList.toggle('hidden', !v);
+    if (v && wasHidden) this._idleStick(true); // entering play: show where the joystick lives
+  }
+
+  /** Resting hint: a dimmed, pulsing joystick at its home spot until the first touch on the left side. */
+  _idleStick(on) {
+    if (!this.stick) return;
+    this.stick.classList.toggle('idle', on);
+    if (!on) return;
+    this.stick.style.left = '150px';
+    this.stick.style.top = `${Math.round(window.innerHeight - 120)}px`;
+    this.knob.style.transform = '';
+    this.stick.classList.remove('hidden');
+  }
   setActionHighlight(on, label) {
     const b = this.root.querySelector('.t-act');
     b.classList.toggle('ready', on);
@@ -90,7 +110,7 @@ export class TouchControls {
 
   _bindHold(el, code) {
     const I = this.input;
-    const down = (e) => { e.preventDefault(); el.setPointerCapture?.(e.pointerId); if (!I.down.has(code)) I.pressed.add(code); I.down.add(code); el.classList.add('held'); this._buzz(); };
+    const down = (e) => { e.preventDefault(); this._capture(el, e.pointerId); if (!I.down.has(code)) I.pressed.add(code); I.down.add(code); el.classList.add('held'); this._buzz(); };
     const up = (e) => { e.preventDefault(); I.down.delete(code); el.classList.remove('held'); };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointerup', up);
@@ -103,8 +123,9 @@ export class TouchControls {
     let id = null, ox = 0, oy = 0;
     zone.addEventListener('pointerdown', (e) => {
       if (id !== null) return;
-      id = e.pointerId; zone.setPointerCapture?.(id);
+      id = e.pointerId; this._capture(zone, id);
       ox = e.clientX; oy = e.clientY;
+      this.stick.classList.remove('idle'); // first touch: the hint goes, the real joystick appears under the thumb
       this.stick.style.left = `${ox}px`; this.stick.style.top = `${oy}px`;
       this.stick.classList.remove('hidden');
       I.analog = { x: 0, y: 0 };
@@ -134,7 +155,7 @@ export class TouchControls {
     let id = null, lx = 0, ly = 0, startT = 0, moved = 0;
     zone.addEventListener('pointerdown', (e) => {
       if (id !== null) return;
-      id = e.pointerId; zone.setPointerCapture?.(id); lx = e.clientX; ly = e.clientY; startT = performance.now(); moved = 0;
+      id = e.pointerId; this._capture(zone, id); lx = e.clientX; ly = e.clientY; startT = performance.now(); moved = 0;
     });
     zone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== id) return;
