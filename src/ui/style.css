@@ -637,3 +637,4 @@ body.dying #keyhint, body.focus-ui #keyhint { opacity: 0; pointer-events: none; 
 /* leave room for the ITEMS button above the noise meter */
 body.touch #noise { top: calc(50% + 30px); }
 #noise { top: calc(50% + 24px); }
+.tk-btn kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 8px; border-radius: 5px; font: 700 10px var(--mono); color: #fff; background: rgba(0, 16, 24, .55); }

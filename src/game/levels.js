@@ -296,7 +296,7 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
     const el = document.createElement('div');
     el.id = 'align';
     el.innerHTML = `<div class="al-k">ANTENNA ALIGNMENT · DISH 2</div><div class="al-bar"><i class="al-zone"></i><b class="al-needle"></b></div>
-      <div class="al-hits"><i></i><i></i><i></i></div><button class="al-btn" type="button">LOCK <kbd>E</kbd></button><div class="al-tip">Tap LOCK when the needle is inside the green band</div>`;
+      <div class="al-hits"><i></i><i></i><i></i></div><button class="al-btn" type="button">LOCK <kbd>SPACE</kbd></button><div class="al-tip">Tap LOCK (or press SPACE) when the needle is inside the green band</div>`;
     document.getElementById('hud').appendChild(el);
     document.body.classList.add('minigame');
     let hits = 0, misses = 0, t = 0, zone = 0.3 + Math.random() * 0.4, width = 0.16, speed = 1.1, alive = true;
@@ -316,17 +316,24 @@ export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
       }
     };
     el.querySelector('.al-btn').addEventListener('click', press);
+    // keyboard: listen directly (the game's per-frame input can drop a press between this loop and the main loop)
+    const onKey = (e) => {
+      if (!el.isConnected) { window.removeEventListener('keydown', onKey); return; } // restarted / died mid-game
+      if (e.repeat || !['Space', 'KeyE'].includes(e.code)) return;
+      e.preventDefault(); press();
+    };
+    window.addEventListener('keydown', onKey);
     await new Promise((resolve) => {
       const tick = () => {
         if (!alive) return;
         t += 1 / 60;
         needle.style.left = `${(0.5 + 0.5 * Math.sin(t * speed * Math.PI)) * 100}%`;
-        if (this.input.wasPressed('KeyE') || this.input.wasPressed('Space')) press();
         if (hits >= 3) { alive = false; resolve(); return; }
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     });
+    window.removeEventListener('keydown', onKey);
     el.classList.add('done');
     document.body.classList.remove('minigame');
     setTimeout(() => el.remove(), 600);

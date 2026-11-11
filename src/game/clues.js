@@ -49,7 +49,7 @@ const CLUES = [
   [/^Install the fuse/i, 'RESTORE AUX POWER',
     `Find the aux cabinet inside the control room and ${USE} on "Install the aux fuse".`],
   [/^Align the comms antenna/i, 'ALIGN THE DISH',
-    `Go to the COMMS console and ${USE}. Tap LOCK (or E) exactly when the needle is inside the green band — 3 hits. Misses are loud.`],
+    `Go to the COMMS console and ${USE}. Tap LOCK (or press SPACE) exactly when the needle is inside the green band — 3 hits. Misses are loud.`],
   [/^Send a signal to Earth/i, 'CALL EARTH',
     `Stay at the COMMS console and ${USE} on "Transmit distress call".`],
 

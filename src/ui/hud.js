@@ -204,8 +204,9 @@ export class HUD {
     $('tk-note').textContent = note;
     box.classList.remove('hidden'); document.body.classList.add('focus-ui');
     this.audio.uiSound('on');
+    window.dispatchEvent(new Event('ne-panel-opened')); // desktop: free the mouse so the button can be clicked (or press G)
     return new Promise((res) => {
-      box.querySelector('.tk-btn').onclick = () => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); this.audio.uiSound('play'); res(); };
+      box.querySelector('.tk-btn').onclick = () => { box.classList.add('hidden'); document.body.classList.remove('focus-ui'); this.audio.uiSound('play'); window.dispatchEvent(new Event('ne-panel-closed')); res(); };
     });
   }
 

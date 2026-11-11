@@ -503,7 +503,7 @@ class Game {
         p.camYaw -= m.x;
         // first person: look up/down like a person; look-around orbit: never from below the floor
         p.camPitch = p.firstPerson ? Math.max(-1.1, Math.min(1.25, p.camPitch + m.y)) : Math.max(-0.12, Math.min(0.9, p.camPitch + m.y));
-        if (I.wasPressed('Space')) this.hud.advance();
+        if (I.wasPressed('Space') && !document.getElementById('align')) this.hud.advance();
         if (I.wasPressed('Enter', 'NumpadEnter')) this.story.skipCinematic(); // skip the scene
         if (I.wasPressed('Tab') && this.tabletEnabled && this.story.player.enabled) this.openTablet(null);
         if (I.wasPressed('KeyF')) { const on = this.story.toggleLight(); document.querySelector('[data-tb="light"]')?.classList.toggle('on', !!on); }
@@ -512,7 +512,8 @@ class Game {
         if (I.wasPressed('KeyQ')) this.onTopbar('clue', document.querySelector('[data-tb="clue"]'));
         // G = crew key: assign tasks (Levels 3–4) or switch player (Levels 1–2), whichever this level offers
         if (I.wasPressed('KeyG')) {
-          if (!$('assignbar').classList.contains('hidden')) this.story.openAssign?.();
+          if (!$('takeback').classList.contains('hidden')) $('takeback').querySelector('.tk-btn').click();
+          else if (!$('assignbar').classList.contains('hidden')) this.story.openAssign?.();
           else if (!$('switchbar').classList.contains('hidden')) $('switchbar').querySelector('.sw-open').click();
           else if (this.story.switchAllowed && this.story.player.enabled) this.story.openSwitcher();
           else this.hud.toast('NO CREW ACTION HERE', 1.4);
