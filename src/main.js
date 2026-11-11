@@ -377,7 +377,9 @@ class Game {
     if (document.fullscreenElement || document.webkitFullscreenElement) return;
     const req = el.requestFullscreen?.bind(el) || el.webkitRequestFullscreen?.bind(el);
     if (!req) { this._iosFullscreenHint(); return; } // iPhone Safari: no element full screen
-    Promise.resolve(req({ navigationUI: 'hide' }))
+    let p;
+    try { p = req({ navigationUI: 'hide' }); } catch (e) { console.info('Full screen refused:', e?.message || e); return; } // some engines throw instead of rejecting
+    Promise.resolve(p)
       .then(() => this.isTouch && screen.orientation?.lock?.('landscape'))
       .catch((e) => console.info('Full screen refused:', e?.message || e));
   }
