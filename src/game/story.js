@@ -792,8 +792,30 @@ export class Story {
 
   addItem(name) {
     this.inventory = this.inventory || [];
-    if (!this.inventory.includes(name)) this.inventory.push(name);
+    if (!this.inventory.includes(name)) { this.inventory.push(name); this.hud.toast(`+ ${name.toUpperCase()}`, 1.6); }
+    this.hud.inventory(this.inventory, (n) => this.useItem(n));
+  }
+
+  /** Use an item from the ITEMS dropdown. Consumables are removed; gear and quest items stay. */
+  useItem(name) {
+    const n = name.toLowerCase();
+    const say = (t, d = 2.4) => this.hud.toast(t, d);
+    if (n.includes('stim')) {
+      // a real effect: a short burst of speed
+      this.inventory = this.inventory.filter((x) => x !== name);
+      this.player.maxSpeedScale = 1.3; clearTimeout(this._stimT);
+      this._stimT = setTimeout(() => { this.player.maxSpeedScale = 1; this.hud.toast('STIMS WORE OFF', 1.6); }, 12000);
+      say('ADRENALINE — FASTER FOR 12 S');
+    } else if (n.includes('med')) say('MED-KIT — NOBODY IS HURT. SAVING IT.');
+    else if (n.includes('plasma')) say('PLASMA CUTTER READY');
+    else if (n.includes('crowbar')) say('CROWBAR IN HAND');
+    else if (n.includes('eva') || n.includes('helmet') || n.includes('vest')) say('SUITED UP — EVA GEAR ON');
+    else if (n.includes('fuse')) say('AUX FUSE — INSTALL IT IN THE CONTROL-ROOM AUX CABINET');
+    else if (n.includes('genesis')) say('GENESIS RESEARCH — KEEP IT SAFE FOR MARS');
+    else if (n.includes('ration') || n.includes('water')) say('SUPPLIES — SAVING THEM FOR THE JOURNEY');
+    else say(name.toUpperCase());
     this.hud.inventory(this.inventory);
+    this.hud.toggleItems(false);
   }
 
   async beat_ending() {

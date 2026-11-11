@@ -701,6 +701,12 @@ export class Station {
       L.dFan.position.set(33, -2.2, 0); L.dFan.distance = 12; L.dFan.color.set(this.alarmPower ? 0xff3020 : 0x6ad8ff);
       L.dFan.intensity = this.ctrlPower ? 9 : 0;
       this.scene.environmentIntensity = this.blackout ? 0.015 : 0.06;
+      if (this.bright && !this.blackout) {
+        // Levels 3–4: main deck power restored — light the whole deck so players can see where they go
+        L.hemi.intensity = 0.75;
+        L.dFan.intensity = 16; L.dFan.distance = 20; L.dFan.color.set(this.alarmPower ? 0xffd2c4 : 0xdff4ff);
+        this.scene.environmentIntensity = 0.38;
+      }
     }
   }
 

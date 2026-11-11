@@ -236,10 +236,39 @@ export class HUD {
   }
 
   /** Collected items shown as chips (bottom-left). */
-  inventory(list) {
+  /**
+   * Collected items live in a compact ITEMS dropdown (they used to pile up on screen).
+   * Tapping an item calls onUse(name).
+   */
+  inventory(list, onUse) {
+    if (onUse) this._onUseItem = onUse;
     let el = document.getElementById('inventory');
-    if (!el) { el = document.createElement('div'); el.id = 'inventory'; this.el.appendChild(el); }
-    el.innerHTML = list.map((n, i) => `<span class="inv${i === list.length - 1 ? ' new' : ''}">${n}</span>`).join('');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'inventory';
+      el.innerHTML = `<button class="inv-btn" type="button" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>ITEMS</span><b class="inv-count">0</b><i class="inv-caret">▾</i></button><ul class="inv-list" hidden></ul>`;
+      this.el.appendChild(el);
+      const btn = el.querySelector('.inv-btn');
+      btn.addEventListener('click', (e) => { e.stopPropagation(); this.toggleItems(); });
+      document.addEventListener('pointerdown', (e) => { if (!el.contains(e.target)) this.toggleItems(false); });
+    }
+    const count = el.querySelector('.inv-count'), ul = el.querySelector('.inv-list');
+    const grew = list.length > (this._invCount ?? 0);
+    this._invCount = list.length;
+    count.textContent = list.length;
+    el.classList.toggle('empty', !list.length);
+    ul.innerHTML = list.length ? list.map((n) => `<li><button type="button" class="inv-item" data-name="${n.replace(/"/g, '&quot;')}"><span>${n}</span><em>USE</em></button></li>`).join('') : '<li class="inv-none">Nothing yet</li>';
+    ul.querySelectorAll('.inv-item').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); this.audio.uiSound('press'); this._onUseItem?.(b.dataset.name); }));
+    if (grew) { const b = el.querySelector('.inv-btn'); b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); }
+  }
+
+  toggleItems(v) {
+    const el = document.getElementById('inventory'); if (!el) return;
+    const ul = el.querySelector('.inv-list'), btn = el.querySelector('.inv-btn');
+    const open = v === undefined ? ul.hidden : v;
+    if (open === !ul.hidden) return;
+    ul.hidden = !open; btn.setAttribute('aria-expanded', String(open)); el.classList.toggle('open', open);
+    if (open) this.audio.uiSound('open');
+    window.dispatchEvent(new Event(open ? 'ne-panel-opened' : 'ne-panel-closed')); // desktop: free / recapture the mouse
   }
 
   /** Show a clue card (auto-hides; tap ✕ or CLUE again to close). */

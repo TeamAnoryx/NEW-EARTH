@@ -39,8 +39,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export function installLevels(Story, { V, nearestWalkable, saveProgress }) {
   const P = Story.prototype;
 
-  P._deckSetup = function ({ blackout, ctrlPower, alarm, ctrlClosed, bayOpen, bayZombies }) {
+  P._deckSetup = function ({ blackout, ctrlPower, alarm, ctrlClosed, bayOpen, bayZombies, bright = false }) {
     const S = this.station;
+    S.bright = bright;
     this.setArea('C');
     S.storagePanelLight.material.emissive.set(0x3dff8a);
     S.setBlackout(blackout); S.ctrlPower = ctrlPower; S.alarmPower = alarm;

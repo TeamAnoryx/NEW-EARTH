@@ -262,7 +262,7 @@ class Game {
    * CONTINUE point only moves once this run gets past it.
    */
   restartAll() {
-    this.story.inventory = [];
+    this.story.inventory = []; this.hud.inventory([]);
     this.startGame(0);
   }
 
@@ -346,7 +346,7 @@ class Game {
     this.tabletEnabled = false;
     this.input.requestLock();
     this.story.checkpoint = 'intro';
-    this.story.inventory = [];
+    this.story.inventory = []; this.hud.inventory([]);
     this.story.start(beat || (LEVELS[level] || LEVELS[0]).beat);
     if (!this.isTouch && !this._keyHelpOff()) this.openKeyHelp();
   }
@@ -510,6 +510,7 @@ class Game {
           else this.hud.toast('NO CREW ACTION HERE', 1.4);
         }
         if (I.wasPressed('KeyK', 'KeyH')) this.openKeyHelp();
+        if (I.wasPressed('KeyI')) this.hud.toggleItems();
         if (I.wasPressed('KeyP')) this.pause();
         // arrow keys turn (for players without a mouse / trackpad drag)
         const turn = (I.isDown('ArrowLeft') ? 1 : 0) - (I.isDown('ArrowRight') ? 1 : 0);

@@ -159,7 +159,7 @@ export function buildDeck(st) {
   // the chamber's own work light (cold) and a dim amber emergency light in the bay
   const chL = new THREE.PointLight(0xbfe6ff, 6, 7, 1.6); chL.position.set(33, Y0 + 2.5, -14.3); D.add(chL);
   const bayL = new THREE.PointLight(0xffa54a, 3, 7, 1.8); bayL.position.set(33, Y0 + 2.6, -9.6); D.add(bayL);
-  st.dockLights = [[chL, 6], [bayL, 3]];
+  st.dockLights = [[chL, 9], [bayL, 7]];
   st.setDockLights = (on) => st.dockLights.forEach(([l, v]) => (l.intensity = on ? v : 0));
   st.setDockLights(false);
   st.chamberSpot = new THREE.Vector3(33, Y0, -13.7);

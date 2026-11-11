@@ -143,7 +143,7 @@ export function installEndgame(Story, { V, saveProgress, saveResume }) {
     this.zones = [];
     this.hud.fade(1, 0);
     this._storageDoorObstacle(false);
-    this._deckSetup({ blackout: true, ctrlPower: true, alarm: true, ctrlClosed: true, bayOpen: false, bayZombies: false });
+    this._deckSetup({ blackout: false, ctrlPower: true, alarm: true, ctrlClosed: true, bayOpen: false, bayZombies: false, bright: true });
     this._endgameWorld({ level: 3 });
     // the horde gathers at the control-room door
     this.zombies.forEach((z, i) => { if (i < 9) { z.c.root.position.set(25 + (i % 3) * 0.9, -4.6, -1 + Math.floor(i / 3) * 0.9); z.mode = 'hunt'; z.huntT = 0; z.lostT = -999; z.groanT = Math.random() * 2; z.huntSpeed = 3.6; } });
@@ -268,7 +268,7 @@ export function installEndgame(Story, { V, saveProgress, saveResume }) {
   P._l4World = function () {
     const S = this.station;
     this._storageDoorObstacle(false);
-    this._deckSetup({ blackout: true, ctrlPower: true, alarm: false, ctrlClosed: true, bayOpen: false, bayZombies: true });
+    this._deckSetup({ blackout: false, ctrlPower: true, alarm: false, ctrlClosed: true, bayOpen: false, bayZombies: true, bright: true });
     this._endgameWorld({ level: 4 });
     // vented spine: the horde lies where it fell
     this.zombies.forEach((z, i) => {

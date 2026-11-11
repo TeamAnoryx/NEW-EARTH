@@ -332,12 +332,12 @@ body.touch #timer { left: 50%; right: auto; transform: translateX(-50%); top: ca
   #tablet-map { max-height: 52vh; }
 }
 
-#inventory { position: absolute; left: calc(env(safe-area-inset-left) + 20px); bottom: calc(env(safe-area-inset-bottom) + 16px); display: flex; flex-wrap: wrap; gap: 6px; max-width: 40vw; pointer-events: none; }
+#inventory { position: absolute; left: calc(env(safe-area-inset-left) + 32px); top: calc(env(safe-area-inset-top) + 96px); z-index: 13; pointer-events: auto; }
 #inventory .inv { font: 9px var(--mono); letter-spacing: .12em; padding: 5px 9px; border-radius: 999px; background: rgba(6,16,26,.6); border: 1px solid rgba(95,243,255,.3); color: var(--ink); }
 #inventory .inv.new { animation: invIn .6s cubic-bezier(.34,1.56,.64,1); border-color: var(--cyan); }
 @keyframes invIn { from { transform: scale(0) translateY(20px); opacity: 0; } }
-body.touch #inventory { bottom: auto; top: calc(env(safe-area-inset-top) + 70px); left: calc(env(safe-area-inset-left) + 18px); max-width: 34vw; }
-body.cinematic #inventory { opacity: 0; }
+body.touch #inventory { top: calc(env(safe-area-inset-top) + 74px); left: calc(env(safe-area-inset-left) + 18px); }
+body.cinematic #inventory, body.dying #inventory { opacity: 0; pointer-events: none; }
 
 /* ---------- antenna alignment mini-game ---------- */
 #align { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, 80vw); padding: 18px 20px; border-radius: 18px; pointer-events: auto; text-align: center;
@@ -468,7 +468,7 @@ body.cinematic #topbar .tb-prev { display: none; }
 #lookbtn:active { transform: scale(.94); }
 body.cinematic #lookbtn, body.focus-ui #lookbtn, body.dying #lookbtn { opacity: 0; pointer-events: none; }
 body.idle-ui #lookbtn { opacity: .25; }
-body.touch #inventory { top: calc(env(safe-area-inset-top) + 70px); bottom: auto; }
+
 /* first person: small aim dot (also on touch) */
 body.fp #crosshair { display: block; width: 6px; height: 6px; margin: -3px; background: rgba(232,244,255,.75); box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 0 8px rgba(95,243,255,.6); }
 body.cinematic #crosshair { opacity: 0; }
@@ -615,3 +615,25 @@ body.dying #keyhint, body.focus-ui #keyhint { opacity: 0; pointer-events: none; 
 
 /* desktop key hint on the crew buttons */
 .sw-open kbd, .as-open kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 2px; border-radius: 5px; font: 700 10px var(--mono); letter-spacing: 0; color: #fff; background: rgba(0, 16, 24, .55); }
+
+/* ---------- ITEMS dropdown ---------- */
+#inventory.empty { display: none; }
+.inv-btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px 6px 8px; border-radius: 999px; border: 1px solid rgba(95, 243, 255, .35); background: rgba(6, 16, 26, .7); color: var(--ink); cursor: pointer;
+  font: 700 10px var(--mono); letter-spacing: .2em; backdrop-filter: blur(6px); }
+.inv-btn svg { width: 15px; height: 15px; fill: none; stroke: var(--cyan); stroke-width: 1.8; stroke-linejoin: round; }
+.inv-count { min-width: 18px; height: 18px; border-radius: 9px; display: inline-grid; place-items: center; font-size: 10px; letter-spacing: 0; color: #001018; background: var(--cyan); }
+.inv-caret { font-style: normal; opacity: .7; transition: transform .2s; }
+#inventory.open .inv-caret { transform: rotate(180deg); }
+.inv-btn.pulse { animation: invPulse .9s cubic-bezier(.2, .9, .25, 1.2); }
+@keyframes invPulse { 30% { transform: scale(1.12); box-shadow: 0 0 18px rgba(95, 243, 255, .6); } }
+.inv-list { list-style: none; margin: 6px 0 0; padding: 6px; min-width: 210px; max-height: min(52vh, 320px); overflow: auto; border-radius: 12px; background: rgba(4, 12, 20, .94);
+  border: 1px solid rgba(95, 243, 255, .3); box-shadow: 0 16px 40px rgba(0, 0, 0, .55); animation: invDrop .2s ease-out; }
+@keyframes invDrop { from { opacity: 0; transform: translateY(-6px); } }
+.inv-item { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 0; background: transparent; color: var(--ink); cursor: pointer; font: 12px var(--font); text-align: left; }
+.inv-item:hover, .inv-item:focus-visible { background: rgba(95, 243, 255, .1); outline: none; }
+.inv-item em { font: 700 9px var(--mono); letter-spacing: .2em; font-style: normal; color: var(--cyan); padding: 3px 7px; border-radius: 6px; border: 1px solid rgba(95, 243, 255, .35); }
+.inv-none { padding: 8px 10px; font-size: 12px; color: var(--dim); }
+
+/* leave room for the ITEMS button above the noise meter */
+body.touch #noise { top: calc(50% + 30px); }
+#noise { top: calc(50% + 24px); }
