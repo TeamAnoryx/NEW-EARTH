@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { getMaterials } from '../world/materials.js';
 
 /**
@@ -85,6 +86,7 @@ export class Humanoid {
     this.rig.scale.setScalar(this.scale);
     this.body.add(this.rig);
     this._build();
+    this._batch();
 
     // animation state
     this.time = Math.random() * 100;
@@ -104,6 +106,60 @@ export class Humanoid {
     this._hairVel = 0; this._hairAng = 0;
     this.custom = null;       // optional function(pose, t) for scripted overrides
     this.seed = Math.random() * 10;
+  }
+
+  /**
+   * Draw-call batching. A character is ~60 small meshes; drawn separately (plus once more per
+   * shadow-casting light) ten characters cost ~1,500 draw calls a frame — the main cause of lag on
+   * phones/tablets. Here every mesh becomes an invisible "bone" for its own vertices and all meshes
+   * sharing a material are merged into ONE skinned mesh. Each piece still follows its own transform
+   * (joints, blinking lids, the mouth, the coat), so animation is unchanged — at ~8 draws instead of 60.
+   */
+  _batch() {
+    try { if (localStorage.getItem('new-earth-nobatch') === '1') return; } catch (e) { console.info('Batching flag unavailable:', e?.message || e); } // debug switch
+    const parts = [];
+    this.rig.updateMatrixWorld(true);
+    this.rig.traverse((o) => { if (o.isMesh && !o.isSkinnedMesh) parts.push(o); });
+    if (parts.length < 2) return;
+    const groups = new Map();
+    for (const m of parts) {
+      const key = `${m.material.uuid}|${m.castShadow ? 1 : 0}${m.receiveShadow ? 1 : 0}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(m);
+    }
+    const bones = parts; // the original meshes act as bones (their matrixWorld drives their vertices)
+    const boneIndex = new Map(bones.map((b, i) => [b, i]));
+    const skeleton = new THREE.Skeleton(bones, bones.map(() => new THREE.Matrix4()));
+    const prep = (m) => {
+      let g = m.geometry.clone();
+      for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+      const n = g.attributes.position.count;
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+      if (!g.index) g.setIndex([...Array(n).keys()]);
+      const bi = boneIndex.get(m);
+      const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+      for (let i = 0; i < n; i++) { si[i * 4] = bi; sw[i * 4] = 1; }
+      g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+      g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+      g.morphAttributes = {};
+      return g;
+    };
+    this._batched = [];
+    for (const list of groups.values()) {
+      let geo = null;
+      try { geo = mergeGeometries(list.map(prep), false); }
+      catch (e) { console.warn('Character batching skipped for one material:', e?.message || e); geo = null; }
+      if (!geo) continue;
+      const sm = new THREE.SkinnedMesh(geo, list[0].material);
+      // the infected stand in dark corridors: their shadows are barely visible but cost a full extra draw per light
+      sm.castShadow = list[0].castShadow && !this.opts.zombie; sm.receiveShadow = list[0].receiveShadow;
+      sm.frustumCulled = false; // poses move limbs outside any bind-pose bound
+      this.rig.add(sm);
+      sm.bind(skeleton, new THREE.Matrix4()); // identity bind: vertex = bone.matrixWorld × local vertex
+      list.forEach((m) => { m.visible = false; m.castShadow = false; });
+      this._batched.push(sm);
+    }
   }
 
   _build() {

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getMaterials, tiled } from './materials.js';
 import { createEarth, createStars, createSun } from './space.js';
 import { buildDeck } from './deck.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
  * HELIOS-7 interior. One continuous, physically consistent space:
@@ -46,6 +47,66 @@ export class Station {
     buildDeck(this);
     this._buildLights();
     this._buildParticles();
+    this._batchStatic();
+  }
+
+  /**
+   * Draw-call batching for the static set dressing. Each area is hundreds of small boxes; merging
+   * those that share a material into one mesh cuts the draws (and the per-light shadow draws) by
+   * hundreds. Only plain, opaque meshes sitting directly in an area group are merged, and never
+   * anything the game holds a reference to (doors, panels, lights, screens...) or anything inside
+   * a moving sub-group (fans, pods, doors). The originals stay in place, hidden, as camera-collision
+   * proxies, so nothing else changes.
+   */
+  _batchStatic() {
+    const keep = new Set();
+    const scan = (v, depth) => {
+      if (!v || depth > 3) return;
+      if (v.isObject3D) { keep.add(v); return; }
+      if (Array.isArray(v)) { v.forEach((x) => scan(x, depth + 1)); return; }
+      if (typeof v === 'object' && v.constructor === Object) Object.values(v).forEach((x) => scan(x, depth + 1));
+    };
+    for (const [k, v] of Object.entries(this)) if (!['root', 'scene', 'camColliders', 'quarters', 'corridor', 'duct', 'storage', 'hallway', 'deck'].includes(k)) scan(v, 0);
+    let before = 0, after = 0;
+    for (const area of [this.quarters, this.corridor, this.duct, this.storage, this.hallway, this.deck]) {
+      if (!area) continue;
+      area.updateMatrixWorld(true);
+      const groups = new Map();
+      for (const m of area.children) {
+        if (!m.isMesh || m.isInstancedMesh || m.isSkinnedMesh || keep.has(m) || m.children.length || !m.visible) continue;
+        const mat = m.material;
+        if (!mat || Array.isArray(mat) || mat.transparent || mat.isShaderMaterial || !m.geometry?.attributes?.position) continue;
+        const key = `${mat.uuid}|${m.castShadow ? 1 : 0}${m.receiveShadow ? 1 : 0}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(m);
+      }
+      for (const list of groups.values()) {
+        if (list.length < 2) continue;
+        const geos = list.map((m) => {
+          const g = m.geometry.clone();
+          for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+          const n = g.attributes.position.count;
+          if (!g.attributes.normal) g.computeVertexNormals();
+          if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
+          if (!g.index) g.setIndex([...Array(n).keys()]);
+          g.morphAttributes = {};
+          m.updateMatrix(); g.applyMatrix4(m.matrix);
+          return g;
+        });
+        let geo = null;
+        try { geo = mergeGeometries(geos, false); }
+        catch (e) { console.warn('Static batching skipped for one material:', e?.message || e); }
+        geos.forEach((g) => g.dispose());
+        if (!geo) continue;
+        const merged = new THREE.Mesh(geo, list[0].material);
+        merged.castShadow = list[0].castShadow; merged.receiveShadow = list[0].receiveShadow;
+        merged.name = 'batched';
+        area.add(merged);
+        list.forEach((m) => { m.visible = false; m.castShadow = false; }); // stay as invisible camera-collision proxies
+        before += list.length; after += 1;
+      }
+    }
+    this.batchStats = { before, after };
   }
 
   // ---------------------------------------------------------------- helpers

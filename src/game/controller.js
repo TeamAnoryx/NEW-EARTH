@@ -109,8 +109,11 @@ export class PlayerController {
     this.vel.x += (desired.x - this.vel.x) * (1 - Math.exp(-accel * dt));
     this.vel.z += (desired.z - this.vel.z) * (1 - Math.exp(-accel * dt));
     const from = { x: c.position.x, z: c.position.z };
-    const to = { x: from.x + this.vel.x * dt, z: from.z + this.vel.z * dt };
-    const r = resolveMove(this.area, obstacles, from, to, RADIUS, this.height);
+    // sub-step long moves (fast sprint on a slow frame) so a thin closed door can't be tunnelled through
+    const dx = this.vel.x * dt, dz = this.vel.z * dt;
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.15));
+    let r = from;
+    for (let i = 0; i < steps; i++) r = resolveMove(this.area, obstacles, r, { x: r.x + dx / steps, z: r.z + dz / steps }, RADIUS, this.height);
     c.position.x = r.x; c.position.z = r.z;
     c.position.y = AREAS[this.area].floorY;
     const actual = Math.hypot(r.x - from.x, r.z - from.z) / Math.max(dt, 1e-4);
@@ -290,7 +293,12 @@ export class Follower {
           const ox = to.x - o.position.x, oz = to.z - o.position.z, od = Math.hypot(ox, oz);
           if (od < 0.55 && od > 1e-4) { to.x += (ox / od) * (0.55 - od) * 0.5; to.z += (oz / od) * (0.55 - od) * 0.5; }
         }
-        const r = this.scripted ? to : resolveMove(area, obstacles, { x: c.position.x, z: c.position.z }, to, 0.26, 1.7);
+        let r = to;
+        if (!this.scripted) {
+          const sx = to.x - c.position.x, sz = to.z - c.position.z, n = Math.max(1, Math.ceil(Math.hypot(sx, sz) / 0.15));
+          r = { x: c.position.x, z: c.position.z };
+          for (let i = 0; i < n; i++) r = resolveMove(area, obstacles, r, { x: r.x + sx / n, z: r.z + sz / n }, 0.26, 1.7);
+        }
         const progressed = Math.hypot(r.x - c.position.x, r.z - c.position.z) > step * 0.25;
         this._stuckT = progressed ? 0 : (this._stuckT || 0) + dt;
         moved = Math.hypot(r.x - c.position.x, r.z - c.position.z);

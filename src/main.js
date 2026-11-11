@@ -468,7 +468,8 @@ class Game {
     requestAnimationFrame((t) => this.loop(t));
     this.timer.update(ts);
     const raw = this.timer.getDelta();
-    const dt = Math.min(0.05, raw);
+    // up to 1/10 s per frame: a slow device stays in real time (cutscenes don't crawl), big hitches are still capped
+    const dt = Math.min(0.1, raw);
     if (this.mode === 'boot' || this.mode === 'finale-film') return; // the intro / ending film owns the screen
     if (this.mode === 'finale') { this._finaleTick?.(dt); this.input.endFrame(); this.renderer.render(this.t); return; }
     if (this.mode === 'title' || this.mode === 'play' || this.mode === 'dead') this.governor.sample(raw);
