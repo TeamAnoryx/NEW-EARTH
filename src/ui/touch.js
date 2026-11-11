@@ -11,6 +11,11 @@
  * stylus (S Pen) all report a fine, hovering pointer. So the device itself is checked first.
  */
 export function isTouch() {
+  try { return detectTouch(); }
+  catch (e) { console.warn('Device detection failed; assuming keyboard + mouse:', e?.message || e); return false; }
+}
+
+function detectTouch() {
   const ua = navigator.userAgent || '';
   const touchPoints = navigator.maxTouchPoints || 0;
   if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;                          // phones + tablets (Android tablets drop "Mobile", not "Android")
